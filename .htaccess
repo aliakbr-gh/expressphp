@@ -1,0 +1,14 @@
+Options -Indexes
+RewriteEngine On
+
+# Preserve Bearer and Basic Authorization headers through Apache rewrites.
+RewriteCond %{HTTP:Authorization} ^(.+)$
+RewriteRule ^ - [E=HTTP_AUTHORIZATION:%1]
+
+# Framework internals must never be served directly.
+RewriteRule ^(?:bootstrap\.php|make|migrate\.php|app|config|core|migrations|routes|storage)(?:/|$) - [F,L,NC]
+
+# Existing public assets may be served by Apache; everything else enters the app.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ExpressPHP API Tests</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f4f6f8;
+            color: #18212b;
+            font: 14px/1.45 Arial, sans-serif;
+        }
+
+        main {
+            max-width: 1180px;
+            margin: auto;
+            padding: 24px;
+        }
+
+        h1 {
+            margin: 0 0 4px;
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 18px;
+        }
+
+        p {
+            color: #596674;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #dce2e8;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .wide {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            display: block;
+            margin: 9px 0 4px;
+            font-weight: 600;
+        }
+
+        input, select, textarea, button {
+            width: 100%;
+            border: 1px solid #b8c2cc;
+            border-radius: 5px;
+            padding: 9px 10px;
+            font: inherit;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+            font-family: ui-monospace, monospace;
+        }
+
+        button {
+            margin-top: 9px;
+            background: #1769e0;
+            border-color: #1769e0;
+            color: white;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: #526170;
+            border-color: #526170;
+        }
+
+        button.danger {
+            background: #be2f3b;
+            border-color: #be2f3b;
+        }
+
+        button:disabled {
+            opacity: .55;
+            cursor: wait;
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .status {
+            display: inline-block;
+            margin: 8px 0;
+            border-radius: 999px;
+            padding: 4px 9px;
+            background: #e7ebef;
+        }
+
+        .status.ok {
+            background: #d9f4e4;
+            color: #136934;
+        }
+
+        .status.error {
+            background: #fde1e3;
+            color: #9c1c28;
+        }
+
+        pre {
+            min-height: 180px;
+            max-height: 520px;
+            overflow: auto;
+            margin: 0;
+            padding: 14px;
+            border-radius: 6px;
+            background: #101820;
+            color: #d7e1ea;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .note {
+            font-size: 12px;
+        }
+
+        .token {
+            word-break: break-all;
+            font-family: ui-monospace, monospace;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>ExpressPHP API Test Console</h1>
+    <p>Raw HTML and Fetch API test client. Run migrations and <code>php seed.php</code> first.</p>
+
+    <div class="grid">
+        <section class="card wide">
+            <h2>Connection</h2>
+            <label for="apiBase">API base URL</label>
+            <input id="apiBase" type="text">
+            <div id="authStatus" class="status">Not authenticated</div>
+            <div id="tokenPreview" class="token"></div>
+            <div class="buttons">
+                <button data-action="server-health">Server health</button>
+                <button data-action="database-health">Database health</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Authentication</h2>
+            <label for="username">Username</label>
+            <input id="username" value="akbar">
+            <label for="password">Password</label>
+            <input id="password" type="password" value="akbar123">
+            <div class="buttons">
+                <button data-action="login">Login</button>
+                <button data-action="me">Current user</button>
+                <button data-action="refresh">Refresh token</button>
+                <button class="danger" data-action="logout">Logout</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Paginated collections</h2>
+            <label for="limit">Limit</label>
+            <input id="limit" type="number" min="1" max="100" value="5">
+            <label for="offset">Offset</label>
+            <input id="offset" type="number" min="0" value="0">
+            <label for="logDate">Date</label>
+            <input id="logDate" type="date">
+            <div class="buttons">
+                <button data-action="roles">Roles</button>
+                <button data-action="permissions">Permissions</button>
+                <button data-action="users">Users</button>
+                <button data-action="activities">Activity logs</button>
+                <button data-action="server-logs">Server logs</button>
+                <button data-action="email-logs">Email logs</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Create role</h2>
+            <label for="roleName">Name</label>
+            <input id="roleName" value="Content Editor">
+            <label for="roleSlug">Slug</label>
+            <input id="roleSlug" value="content-editor">
+            <button data-action="create-role">Create role</button>
+        </section>
+
+        <section class="card">
+            <h2>Create permission</h2>
+            <label for="permissionName">Name</label>
+            <input id="permissionName" value="Publish articles">
+            <label for="permissionSlug">Slug</label>
+            <input id="permissionSlug" value="articles.publish">
+            <button data-action="create-permission">Create permission</button>
+        </section>
+
+        <section class="card">
+            <h2>RBAC assignments</h2>
+            <label for="roleId">Role ID</label>
+            <input id="roleId" type="number" min="1">
+            <label for="permissionId">Permission ID</label>
+            <input id="permissionId" type="number" min="1">
+            <label for="userId">User ID</label>
+            <input id="userId" type="number" min="1">
+            <div class="buttons">
+                <button data-action="attach-permission">Attach permission</button>
+                <button data-action="role-permissions">Role permissions</button>
+                <button data-action="assign-role">Assign role to user</button>
+                <button data-action="user-permissions">User permissions</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Manual activity</h2>
+            <label for="activityDescription">Description</label>
+            <input id="activityDescription" value="Ali Akbar created a manual test activity">
+            <button data-action="create-activity">Create activity</button>
+        </section>
+
+        <section class="card">
+            <h2>Send email</h2>
+            <label for="emailMailer">Mailer</label>
+            <select id="emailMailer">
+                <option value="smtp">SMTP</option>
+                <option value="gmail">Gmail</option>
+            </select>
+            <label for="emailTo">Recipient</label>
+            <input id="emailTo" type="email" placeholder="recipient@example.com">
+            <label for="emailSubject">Subject</label>
+            <input id="emailSubject" value="ExpressPHP test email">
+            <label for="emailBody">Body</label>
+            <textarea id="emailBody"><h1>ExpressPHP</h1><p>SMTP delivery is working.</p></textarea>
+            <label for="emailReplyTo">Reply-to (optional)</label>
+            <input id="emailReplyTo" type="email" placeholder="support@example.com">
+            <button data-action="send-email">Send email</button>
+        </section>
+
+        <section class="card">
+            <h2>File upload</h2>
+            <p class="note">Allowed types and maximum size come from <code>config/app.php</code>.</p>
+            <label for="uploadFile">Choose file</label>
+            <input id="uploadFile" type="file">
+            <button data-action="upload-file">Upload file</button>
+        </section>
+
+        <section class="card wide">
+            <h2>Complete API flow</h2>
+            <p class="note">Creates temporary RBAC records, tests pagination and activity logging, deletes temporary
+                records, logs out, and confirms the old token is rejected. Requests are paced to avoid rate-limit
+                violations.</p>
+            <button id="runFlow" data-action="full-flow">Run complete flow</button>
+            <div id="flowStatus" class="status">Not started</div>
+        </section>
+
+        <section class="card wide">
+            <h2>Custom request</h2>
+            <div class="grid">
+                <div>
+                    <label for="customMethod">Method</label>
+                    <select id="customMethod">
+                        <option>GET</option>
+                        <option>POST</option>
+                        <option>PATCH</option>
+                        <option>PUT</option>
+                        <option>DELETE</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="customPath">Path</label>
+                    <input id="customPath" value="/roles?limit=5&offset=0">
+                </div>
+            </div>
+            <label for="customBody">JSON body</label>
+            <textarea id="customBody">{}</textarea>
+            <button data-action="custom-request">Send request</button>
+        </section>
+
+        <section class="card wide">
+            <h2>Response and test output</h2>
+            <pre id="output">Ready.</pre>
+        </section>
+    </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

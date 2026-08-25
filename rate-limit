@@ -1,0 +1,34 @@
+<?php
+
+declare(strict_types=1);
+
+use ExpressPHP\RateLimit\RateLimiter;
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
+require __DIR__ . '/bootstrap.php';
+
+$config = require __DIR__ . '/config/app.php';
+$limiter = new RateLimiter($config['rate_limiter'] ?? []);
+$command = $argv[1] ?? null;
+$ip = $argv[2] ?? null;
+
+try {
+    $result = match ($command) {
+        'status' => $ip !== null ? $limiter->status($ip) : throw new RuntimeException('An IP address is required.'),
+        'block' => $ip !== null ? $limiter->block($ip) : throw new RuntimeException('An IP address is required.'),
+        'clear' => $ip !== null ? $limiter->clear($ip) : throw new RuntimeException('An IP address is required.'),
+        'blocked' => $limiter->blocked(),
+        default => throw new RuntimeException(
+            'Use: status <ip>, block <ip>, clear <ip>, or blocked.',
+        ),
+    };
+
+    echo json_encode($result, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'Rate limiter: ' . $exception->getMessage() . PHP_EOL);
+    exit(1);
+}
