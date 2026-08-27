@@ -2,15 +2,43 @@
 
 declare(strict_types=1);
 
+$environment = getenv('APP_ENV') ?: 'development';
 $debugEnvironment = getenv('APP_DEBUG');
-$debugEnabled = $debugEnvironment === false
-    ? true
-    : filter_var($debugEnvironment, FILTER_VALIDATE_BOOL);
+$debugEnabled = $debugEnvironment !== false
+    && filter_var($debugEnvironment, FILTER_VALIDATE_BOOL);
+$jwtSecret = getenv('JWT_SECRET') ?: 'expressphp-development-secret-change-this-before-production-2026';
+$corsOrigins = array_values(array_filter(array_map(
+    'trim',
+    explode(',', (string)(getenv('CORS_ORIGINS') ?: '*')),
+)));
+
+if ($environment === 'production') {
+    $required = ['JWT_SECRET', 'DB_HOST', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD'];
+    $missing = array_values(array_filter(
+        $required,
+        static fn(string $name): bool => getenv($name) === false || trim((string)getenv($name)) === '',
+    ));
+    if ($missing !== []) {
+        throw new RuntimeException('Missing required production configuration: ' . implode(', ', $missing));
+    }
+    if ($debugEnabled) {
+        throw new RuntimeException('APP_DEBUG must be false in production.');
+    }
+    if (
+        $jwtSecret === 'expressphp-development-secret-change-this-before-production-2026'
+        || strlen($jwtSecret) < 32
+    ) {
+        throw new RuntimeException('JWT_SECRET must contain at least 32 non-default bytes in production.');
+    }
+    if ($corsOrigins === [] || in_array('*', $corsOrigins, true)) {
+        throw new RuntimeException('CORS_ORIGINS must list explicit origins in production.');
+    }
+}
 
 return [
     'name' => 'ExpressPHP',
     'timezone' => getenv('APP_TIMEZONE') ?: 'Asia/Karachi',
-    'env' => getenv('APP_ENV') ?: 'development',
+    'env' => $environment,
     'debug' => $debugEnabled,
     'base_path' => '',
 
@@ -34,15 +62,21 @@ return [
         'window_seconds' => 1,
         'pause_minutes' => 5,
         'max_violations' => 3,
+        'block_minutes' => 30,
+        'violation_decay_minutes' => 60,
         'path' => dirname(__DIR__) . '/storage/rate-limiter',
         'except' => [
             '/api/v1/health/server',
+        ],
+        'fail_closed' => [
+            '/api/v1/auth/login',
+            '/api/v1/auth/register',
         ],
     ],
 
     'jwt' => [
         // Always set JWT_SECRET to a long random value in production.
-        'secret' => getenv('JWT_SECRET') ?: 'expressphp-development-secret-change-this-before-production-2026',
+        'secret' => $jwtSecret,
         'issuer' => getenv('JWT_ISSUER') ?: 'expressphp',
         'audience' => getenv('JWT_AUDIENCE') ?: 'expressphp-api',
         'ttl' => (int)(getenv('JWT_TTL') ?: 3600),
@@ -84,14 +118,26 @@ return [
             'jpg', 'jpeg', 'png', 'gif', 'webp',
             'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'zip',
         ],
-        'allowed_mime_types' => [
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-            'application/pdf', 'text/plain', 'text/csv', 'application/csv',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/zip', 'application/x-zip-compressed', 'application/octet-stream',
+        'mime_types_by_extension' => [
+            'jpg' => ['image/jpeg'],
+            'jpeg' => ['image/jpeg'],
+            'png' => ['image/png'],
+            'gif' => ['image/gif'],
+            'webp' => ['image/webp'],
+            'pdf' => ['application/pdf'],
+            'txt' => ['text/plain'],
+            'csv' => ['text/plain', 'text/csv', 'application/csv'],
+            'doc' => ['application/msword'],
+            'docx' => [
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/zip',
+            ],
+            'xls' => ['application/vnd.ms-excel'],
+            'xlsx' => [
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/zip',
+            ],
+            'zip' => ['application/zip', 'application/x-zip-compressed'],
         ],
     ],
 
@@ -132,7 +178,7 @@ return [
 
     'cors' => [
         'enabled' => true,
-        'origins' => ['*'],
+        'origins' => $corsOrigins,
         'methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         'headers' => ['Accept', 'Authorization', 'Content-Type', 'Origin', 'X-Requested-With'],
         'expose_headers' => [

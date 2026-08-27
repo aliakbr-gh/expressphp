@@ -18,7 +18,6 @@ final class HealthController
             'service' => 'server',
             'status' => 'healthy',
             'timestamp' => (new DateTimeImmutable())->format(DATE_ATOM),
-            'php_version' => PHP_VERSION,
         ], 'Server is healthy');
     }
 

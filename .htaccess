@@ -1,12 +1,17 @@
 Options -Indexes
 RewriteEngine On
 
+# Deny hidden files such as .env and .git regardless of whether they exist.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
 # Preserve Bearer and Basic Authorization headers through Apache rewrites.
 RewriteCond %{HTTP:Authorization} ^(.+)$
 RewriteRule ^ - [E=HTTP_AUTHORIZATION:%1]
 
-# Framework internals must never be served directly.
-RewriteRule ^(?:bootstrap\.php|make|migrate\.php|app|config|core|migrations|routes|storage)(?:/|$) - [F,L,NC]
+# Framework internals, CLI tools, and project metadata must never be served directly.
+RewriteRule ^(?:AGENTS\.md|LICENSE|README\.md|bootstrap\.php|format|make|migrate\.php|rate-limit|seed\.php|app|config|migrations|routes|seeders|src|storage)(?:/|$) - [F,L,NC]
 
 # Existing public assets may be served by Apache; everything else enters the app.
 RewriteCond %{REQUEST_FILENAME} !-f

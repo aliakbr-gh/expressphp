@@ -1,6 +1,7 @@
 # ExpressPHP
 
-ExpressPHP is a zero-dependency PHP micro-framework and starter kit for building secure, production-ready REST APIs with MySQL.
+ExpressPHP is a zero-dependency PHP micro-framework and starter kit for building secure, production-ready REST APIs with
+MySQL.
 
 It uses core PHP and PDO. There is no Composer or `vendor/` directory.
 
@@ -168,7 +169,8 @@ Send protected requests with:
 Authorization: Bearer <token>
 ```
 
-Refresh creates a replacement token and invalidates previous tokens for that user. Logout invalidates all active tokens through `session_version`.
+Refresh creates a replacement token and invalidates previous tokens for that user. Logout invalidates all active tokens
+through `session_version`.
 
 ```php
 ['auth', 'permission:reports.view']
@@ -184,7 +186,8 @@ GET /api/v1/activity-logs?date=2026-08-25&limit=20&offset=0
 GET /api/v1/server-logs?date=2026-08-25&limit=20&offset=0
 ```
 
-Daily JSON request logs are stored under `storage/logs/`. Passwords, tokens, cookies, authorization headers, and other sensitive fields are redacted.
+Daily JSON request logs are stored under `storage/logs/`. Passwords, tokens, cookies, authorization headers, and other
+sensitive fields are redacted.
 
 ## Email
 
@@ -249,7 +252,7 @@ Format the project with PhpStorm closed:
 - Use a long random `JWT_SECRET`
 - Use a restricted database account
 - Change or remove seeded credentials
-- Configure exact CORS origins and trusted proxies
+- Configure exact comma-separated `CORS_ORIGINS` and trusted proxies
 - Enable HTTPS
 - Keep `.env` and `storage/` private
 - Configure PHP request and upload limits

@@ -26,7 +26,7 @@ final class FileUploader
 
         $this->validateSize($size, (int)($config['max_size'] ?? 10 * 1024 * 1024));
         $this->validateAllowed($extension, $config['allowed_extensions'] ?? [], 'extension');
-        $this->validateAllowed($mimeType, $config['allowed_mime_types'] ?? [], 'MIME type');
+        $this->validateMimeType($extension, $mimeType, $config);
 
         $root = $this->root($config);
         $subdirectory = $this->subdirectory($directory);
@@ -111,6 +111,21 @@ final class FileUploader
         if ($allowed !== [] && !in_array(strtolower($value), $allowed, true)) {
             throw new FileUploadException("The uploaded file {$label} is not allowed.");
         }
+    }
+
+    private function validateMimeType(string $extension, string $mimeType, array $config): void
+    {
+        $mapping = $config['mime_types_by_extension'] ?? [];
+        if (is_array($mapping) && $mapping !== []) {
+            $allowed = $mapping[$extension] ?? [];
+            if (!is_array($allowed) || $allowed === []) {
+                throw new FileUploadException('The uploaded file extension has no MIME type policy.');
+            }
+            $this->validateAllowed($mimeType, $allowed, 'MIME type');
+            return;
+        }
+
+        $this->validateAllowed($mimeType, $config['allowed_mime_types'] ?? [], 'MIME type');
     }
 
     private function root(array $config): string

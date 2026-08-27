@@ -97,16 +97,22 @@ final class Application
 
         try {
             if ($request->method() === 'OPTIONS') {
-                return $cors->apply($request, (new Response())->noContent());
+                return $cors->apply($request, $this->securityHeaders((new Response())->noContent(), $request));
             }
 
             $decision = $this->rateLimiter->check($request);
             if (!$decision->allowed) {
-                return $cors->apply($request, $this->rateLimitResponse($decision));
+                return $cors->apply(
+                    $request,
+                    $this->securityHeaders($this->rateLimitResponse($decision), $request),
+                );
             }
 
             $response = $this->router->dispatch($request, new Response());
-            return $cors->apply($request, $this->rateLimitHeaders($response, $decision));
+            return $cors->apply(
+                $request,
+                $this->securityHeaders($this->rateLimitHeaders($response, $decision), $request),
+            );
         } catch (ValidationException $exception) {
             $response = (new Response())->error($exception->errors(), 422);
         } catch (HttpException $exception) {
@@ -127,7 +133,7 @@ final class Application
             $response = $this->rateLimitHeaders($response, $decision);
         }
 
-        return $cors->apply($request, $response);
+        return $cors->apply($request, $this->securityHeaders($response, $request));
     }
 
     public function run(?Request $request = null): never
@@ -147,7 +153,7 @@ final class Application
 
     private function rateLimitResponse(RateLimitDecision $decision): Response
     {
-        if ($decision->blocked) {
+        if ($decision->blocked && $decision->retryAfter === 0) {
             $response = (new Response())->status(403)->json([
                 'success' => false,
                 'message' => 'This IP address has been blocked',
@@ -156,7 +162,7 @@ final class Application
         } else {
             $response = (new Response())->status(429)->json([
                 'success' => false,
-                'message' => 'Too many requests',
+                'message' => $decision->blocked ? 'This IP address is temporarily blocked' : 'Too many requests',
                 'data' => [
                     'retry_after' => $decision->retryAfter,
                     'violations' => $decision->violations,
@@ -190,5 +196,21 @@ final class Application
             ->header('X-RateLimit-Limit', (string)$decision->limit)
             ->header('X-RateLimit-Remaining', (string)$decision->remaining)
             ->header('X-RateLimit-Reset', (string)$decision->resetAt);
+    }
+
+    private function securityHeaders(Response $response, Request $request): Response
+    {
+        $response
+            ->header('Cache-Control', 'no-store')
+            ->header('X-Content-Type-Options', 'nosniff')
+            ->header('X-Frame-Options', 'DENY')
+            ->header('Referrer-Policy', 'no-referrer')
+            ->header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+        if ($request->secure()) {
+            $response->header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
+
+        return $response;
     }
 }

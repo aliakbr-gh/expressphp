@@ -16,8 +16,11 @@ final class RateLimiter
     private readonly int $windowSeconds;
     private readonly int $pauseSeconds;
     private readonly int $maxViolations;
+    private readonly int $blockSeconds;
+    private readonly int $violationDecaySeconds;
     private readonly string $path;
     private readonly array $except;
+    private readonly array $failClosed;
 
     public function __construct(array $config = [])
     {
@@ -26,11 +29,14 @@ final class RateLimiter
         $this->windowSeconds = max(1, (int)($config['window_seconds'] ?? 1));
         $this->pauseSeconds = max(1, (int)($config['pause_minutes'] ?? 5)) * 60;
         $this->maxViolations = max(1, (int)($config['max_violations'] ?? 3));
+        $this->blockSeconds = max(60, (int)($config['block_minutes'] ?? 30) * 60);
+        $this->violationDecaySeconds = max(60, (int)($config['violation_decay_minutes'] ?? 60) * 60);
         $this->path = rtrim(
             (string)($config['path'] ?? dirname(__DIR__, 2) . '/storage/rate-limiter'),
             '/',
         );
         $this->except = is_array($config['except'] ?? null) ? $config['except'] : [];
+        $this->failClosed = is_array($config['fail_closed'] ?? null) ? $config['fail_closed'] : [];
     }
 
     public function check(Request $request): RateLimitDecision
@@ -43,17 +49,27 @@ final class RateLimiter
 
         try {
             return $this->update($request->ip(), function (array $record) use ($now): array {
-                if ((bool)($record['blocked'] ?? false)) {
+                $blockedUntil = $record['blocked_until'] ?? null;
+                if ((bool)($record['blocked'] ?? false) && ($blockedUntil === null || (int)$blockedUntil > $now)) {
                     return [$record, new RateLimitDecision(
                         false,
                         true,
                         $this->maxRequests,
                         0,
-                        0,
-                        0,
+                        $blockedUntil === null ? 0 : (int)$blockedUntil,
+                        $blockedUntil === null ? 0 : max(0, (int)$blockedUntil - $now),
                         (int)($record['violations'] ?? $this->maxViolations),
                         $this->maxViolations,
                     )];
+                }
+                if ((bool)($record['blocked'] ?? false)) {
+                    $record = $this->freshRecord((string)$record['ip']);
+                }
+
+                $lastViolationAt = (int)($record['last_violation_at'] ?? 0);
+                if ($lastViolationAt > 0 && $now >= $lastViolationAt + $this->violationDecaySeconds) {
+                    $record['violations'] = 0;
+                    $record['last_violation_at'] = null;
                 }
 
                 $pausedUntil = (int)($record['paused_until'] ?? 0);
@@ -102,6 +118,7 @@ final class RateLimiter
                 if ($record['violations'] >= $this->maxViolations) {
                     $record['blocked'] = true;
                     $record['blocked_at'] = $now;
+                    $record['blocked_until'] = $now + $this->blockSeconds;
                     $record['paused_until'] = 0;
 
                     return [$record, new RateLimitDecision(
@@ -109,8 +126,8 @@ final class RateLimiter
                         true,
                         $this->maxRequests,
                         0,
-                        0,
-                        0,
+                        $record['blocked_until'],
+                        $this->blockSeconds,
                         $record['violations'],
                         $this->maxViolations,
                     )];
@@ -130,6 +147,18 @@ final class RateLimiter
                 )];
             });
         } catch (Throwable) {
+            if ($this->matches($request->path(), $this->failClosed)) {
+                return new RateLimitDecision(
+                    false,
+                    false,
+                    $this->maxRequests,
+                    0,
+                    $now + 60,
+                    60,
+                    0,
+                    $this->maxViolations,
+                );
+            }
             return new RateLimitDecision(true, false, $this->maxRequests, $this->maxRequests, $now);
         }
     }
@@ -147,6 +176,7 @@ final class RateLimiter
         return $this->update($ip, function (array $record): array {
             $record['blocked'] = true;
             $record['blocked_at'] = time();
+            $record['blocked_until'] = null;
             $record['paused_until'] = 0;
             $record['violations'] = max($this->maxViolations, (int)($record['violations'] ?? 0));
             return [$record, $record];
@@ -170,7 +200,8 @@ final class RateLimiter
 
         foreach (glob($this->path . '/*.json') ?: [] as $file) {
             $record = $this->readFile($file);
-            if ((bool)($record['blocked'] ?? false)) {
+            $blockedUntil = $record['blocked_until'] ?? null;
+            if ((bool)($record['blocked'] ?? false) && ($blockedUntil === null || (int)$blockedUntil > time())) {
                 $blocked[] = $record;
             }
         }
@@ -183,7 +214,12 @@ final class RateLimiter
 
     private function excluded(string $path): bool
     {
-        foreach ($this->except as $pattern) {
+        return $this->matches($path, $this->except);
+    }
+
+    private function matches(string $path, array $patterns): bool
+    {
+        foreach ($patterns as $pattern) {
             if (is_string($pattern) && fnmatch($pattern, $path)) {
                 return true;
             }
@@ -272,6 +308,7 @@ final class RateLimiter
             'paused_until' => 0,
             'blocked' => false,
             'blocked_at' => null,
+            'blocked_until' => null,
         ];
     }
 
