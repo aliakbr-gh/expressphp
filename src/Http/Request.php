@@ -12,6 +12,7 @@ final class Request
     private array $params = [];
     private bool $jsonDecoded = false;
     private mixed $decodedJson = null;
+    private array $jsonObjectPaths = [];
     private ?array $parsedForm = null;
     private ?array $authenticatedUser = null;
 
@@ -75,9 +76,13 @@ final class Request
     {
         if (!$this->jsonDecoded) {
             try {
-                $this->decodedJson = $this->rawBody === ''
-                    ? []
-                    : json_decode($this->rawBody, true, 512, JSON_THROW_ON_ERROR);
+                if ($this->rawBody === '') {
+                    $this->decodedJson = [];
+                } else {
+                    $this->decodedJson = json_decode($this->rawBody, true, 512, JSON_THROW_ON_ERROR);
+                    $jsonShape = json_decode($this->rawBody, false, 512, JSON_THROW_ON_ERROR);
+                    $this->collectJsonObjectPaths($jsonShape);
+                }
             } catch (JsonException) {
                 throw new HttpException('Malformed JSON request body', 400);
             }
@@ -106,7 +111,12 @@ final class Request
     {
         $input = $this->input();
         $input = is_array($input) ? $input : [];
-        return Validator::validate(array_replace_recursive($this->query, $input), $rules, $messages);
+        return Validator::validate(
+            array_replace_recursive($this->query, $input),
+            $rules,
+            $messages,
+            $this->isJson() ? $this->jsonObjectPaths : [],
+        );
     }
 
     public function validateParams(array $rules, array $messages = []): array
@@ -117,6 +127,27 @@ final class Request
     public function query(?string $key = null, mixed $default = null): mixed
     {
         return $key === null ? $this->query : ($this->query[$key] ?? $default);
+    }
+
+    private function collectJsonObjectPaths(mixed $value, string $path = ''): void
+    {
+        if ($value instanceof \stdClass) {
+            if ($path !== '') {
+                $this->jsonObjectPaths[] = $path;
+            }
+            foreach (get_object_vars($value) as $key => $child) {
+                $childPath = $path === '' ? (string)$key : $path . '.' . $key;
+                $this->collectJsonObjectPaths($child, $childPath);
+            }
+            return;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $key => $child) {
+                $childPath = $path === '' ? (string)$key : $path . '.' . $key;
+                $this->collectJsonObjectPaths($child, $childPath);
+            }
+        }
     }
 
     public function param(?string $key = null, mixed $default = null): mixed

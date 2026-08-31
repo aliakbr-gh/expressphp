@@ -10,7 +10,12 @@ use RuntimeException;
 
 final class Validator
 {
-    public static function validate(array $input, array $rules, array $messages = []): array
+    public static function validate(
+        array $input,
+        array $rules,
+        array $messages = [],
+        array $jsonObjectPaths = [],
+    ): array
     {
         $validated = [];
         $errors = self::unknownKeyErrors($input, array_map('strval', array_keys($rules)));
@@ -58,7 +63,14 @@ final class Validator
                     break;
                 }
 
-                [$valid, $normalized] = self::check($rule, $value, $parameters, $input, (string)$field);
+                [$valid, $normalized] = self::check(
+                    $rule,
+                    $value,
+                    $parameters,
+                    $input,
+                    (string)$field,
+                    $jsonObjectPaths,
+                );
                 if (!$valid) {
                     self::addError($errors, $messages, (string)$field, $rule, $parameters);
                     continue;
@@ -78,7 +90,14 @@ final class Validator
         return $validated;
     }
 
-    private static function check(string $rule, mixed $value, array $parameters, array $input, string $field): array
+    private static function check(
+        string $rule,
+        mixed $value,
+        array $parameters,
+        array $input,
+        string $field,
+        array $jsonObjectPaths,
+    ): array
     {
         return match ($rule) {
             'required', 'nullable', 'sometimes', 'optional' => [true, $value],
@@ -87,6 +106,10 @@ final class Validator
             'numeric' => self::numeric($value),
             'boolean' => self::boolean($value),
             'array' => [is_array($value), $value],
+            'object' => [is_array($value)
+                && (!array_is_list($value) || in_array($field, $jsonObjectPaths, true)), $value],
+            'list' => [is_array($value)
+                && array_is_list($value) && !in_array($field, $jsonObjectPaths, true), $value],
             'email' => [is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL) !== false, $value],
             'url' => [is_string($value) && filter_var($value, FILTER_VALIDATE_URL) !== false, $value],
             'min' => [self::size($value) >= (float)($parameters[0] ?? 0), $value],
@@ -190,6 +213,8 @@ final class Validator
             'numeric' => 'The :attribute field must be numeric.',
             'boolean' => 'The :attribute field must be true or false.',
             'array' => 'The :attribute field must be an array.',
+            'object' => 'The :attribute field must be an object.',
+            'list' => 'The :attribute field must be a list.',
             'email' => 'The :attribute field must contain a valid email address.',
             'url' => 'The :attribute field must contain a valid URL.',
             'min' => 'The :attribute field must be at least :min.',

@@ -142,8 +142,14 @@ $data = $request->validate([
     'name' => 'required|string|min:2|max:100',
     'email' => 'required|string|email',
     'is_active' => 'optional|boolean',
+    'profile' => 'optional|object',
+    'profile.timezone' => 'optional|string',
+    'tags' => 'optional|list',
 ]);
 ```
+
+Use `array` for any PHP array, `object` for a JSON object, and `list` for a sequential
+JSON array. Nested object fields use dot notation, such as `profile.timezone`.
 
 Unknown fields are rejected. Validation errors return HTTP 422.
 
