@@ -9,9 +9,11 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-require __DIR__ . '/bootstrap.php';
+$root = dirname(__DIR__);
 
-$config = require __DIR__ . '/config/app.php';
+require $root . '/src/bootstrap.php';
+
+$config = require $root . '/config/app.php';
 $limiter = new RateLimiter($config['rate_limiter'] ?? []);
 $command = $argv[1] ?? null;
 $ip = $argv[2] ?? null;

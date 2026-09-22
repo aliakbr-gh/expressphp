@@ -10,14 +10,16 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-require __DIR__ . '/bootstrap.php';
+$root = dirname(__DIR__);
 
-$config = require __DIR__ . '/config/app.php';
+require $root . '/src/bootstrap.php';
+
+$config = require $root . '/config/app.php';
 Database::configure($config['databases'] ?? []);
 
 $command = $argv[1] ?? 'status';
 $connection = $argv[2] ?? null;
-$migrator = new Migrator(__DIR__ . '/migrations', $connection);
+$migrator = new Migrator($root . '/migrations', $connection);
 
 try {
     if ($command === 'status') {

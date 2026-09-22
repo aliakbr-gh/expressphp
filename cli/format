@@ -2,7 +2,7 @@
 
 set -eu
 
-PROJECT_PATH=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PROJECT_PATH=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 FORMATTER=/Applications/PhpStorm.app/Contents/bin/format.sh
 
 if [ ! -x "$FORMATTER" ]; then
@@ -16,32 +16,31 @@ case "${1:-}" in
         DRY_RUN=-d
         ;;
     --help|-h)
-        echo "Usage: ./format [--check]"
-        echo "  ./format         Format all project source files"
-        echo "  ./format --check Check formatting without changing files"
+        echo "Usage: ./cli/format [--check]"
+        echo "  ./cli/format         Format all project source files"
+        echo "  ./cli/format --check Check formatting without changing files"
         exit 0
         ;;
     '')
         ;;
     *)
         echo "Unknown option: $1" >&2
-        echo "Usage: ./format [--check]" >&2
+        echo "Usage: ./cli/format [--check]" >&2
         exit 1
         ;;
 esac
 
 set -- \
     "$PROJECT_PATH/app" \
+    "$PROJECT_PATH/cli" \
     "$PROJECT_PATH/config" \
     "$PROJECT_PATH/migrations" \
+    "$PROJECT_PATH/public" \
     "$PROJECT_PATH/routes" \
     "$PROJECT_PATH/seeders" \
     "$PROJECT_PATH/src" \
     "$PROJECT_PATH/tests" \
-    "$PROJECT_PATH/bootstrap.php" \
     "$PROJECT_PATH/index.php" \
-    "$PROJECT_PATH/migrate.php" \
-    "$PROJECT_PATH/seed.php" \
     "$PROJECT_PATH/README.md"
 
 echo "Formatting ExpressPHP with PhpStorm..."

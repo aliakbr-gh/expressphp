@@ -28,8 +28,11 @@ final class AuthController
         $data['role_id'] = $this->users->registrationRoleId();
         $data['is_active'] = true;
         $data['session_version'] = 1;
-        $user = $this->users->create($data);
-        $user = $this->users->findDetailed($user['id']) ?? $user;
+        $created = $this->users->create($data);
+        $user = $this->users->findDetailed($created['id']);
+        if ($user === null) {
+            return $response->error('Registration failed', 500);
+        }
 
         return $response->success($user, 'Registration successful', 201);
     }

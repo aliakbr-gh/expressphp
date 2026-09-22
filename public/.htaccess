@@ -1,0 +1,12 @@
+Options -Indexes
+RewriteEngine On
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+RewriteCond %{HTTP:Authorization} ^(.+)$
+RewriteRule ^ - [E=HTTP_AUTHORIZATION:%1]
+
+RewriteRule ^index\.php$ - [L]
+RewriteRule ^ index.php [QSA,L]

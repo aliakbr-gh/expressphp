@@ -9,14 +9,15 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-require __DIR__ . '/bootstrap.php';
+$root = dirname(__DIR__);
 
-$config = require __DIR__ . '/config/app.php';
+require $root . '/src/bootstrap.php';
+
+$config = require $root . '/config/app.php';
 
 try {
-    exit((new MakeCommand(__DIR__, (string) ($config['timezone'] ?? 'UTC')))->run(array_slice($argv, 1)));
+    exit((new MakeCommand($root, (string)($config['timezone'] ?? 'UTC')))->run(array_slice($argv, 1)));
 } catch (Throwable $exception) {
     fwrite(STDERR, 'Make failed: ' . $exception->getMessage() . PHP_EOL);
     exit(1);
 }
-

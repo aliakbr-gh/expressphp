@@ -33,11 +33,17 @@ It uses core PHP and PDO. There is no Composer or `vendor/` directory.
 cp .env.example .env
 ```
 
-Create a database, update the `DB_*` values in `.env`, and set a strong `JWT_SECRET`. Then run:
+Create a database, copy `.env.example` to `.env`, set `DB_*`, and generate `JWT_SECRET` (required locally and in production):
 
 ```bash
-php migrate.php migrate
-php seed.php
+php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'
+```
+
+Then run:
+
+```bash
+php cli/migrate.php migrate
+php cli/seed.php
 ```
 
 The development seeder creates:
@@ -74,8 +80,11 @@ src/
 ├── RateLimit/
 ├── Routing/
 ├── Storage/
-└── Validation/
+├── Validation/
+└── bootstrap.php
 config/
+cli/
+public/
 migrations/
 routes/
 seeders/
@@ -123,10 +132,10 @@ $router->get(
 Generate starter files:
 
 ```bash
-php make controller Product
-php make model Product
-php make middleware ProductAccess
-php make migration create_products_table
+php cli/make controller Product
+php cli/make model Product
+php cli/make middleware ProductAccess
+php cli/make migration create_products_table
 ```
 
 ## Responses and validation
@@ -160,6 +169,9 @@ GET /api/v1/users?limit=20&offset=0
 ```
 
 ## Authentication and RBAC
+
+Access tokens last `JWT_TTL` seconds (default 86400). The IP limiter defaults to 120 requests per 60 seconds. Tune
+`RATE_LIMIT_*` in `.env` for a chatty mobile client.
 
 ```text
 POST /api/v1/auth/register
@@ -196,7 +208,7 @@ POST /api/v1/rate-limits/block
 POST /api/v1/rate-limits/clear
 ```
 
-Block and clear accept `{"ip":"192.0.2.10"}`. These match the `php rate-limit` commands and require `rate-limits.view`,
+Block and clear accept `{"ip":"192.0.2.10"}`. These match the `php cli/rate-limit` commands and require `rate-limits.view`,
 `rate-limits.block`, or `rate-limits.clear`.
 
 Daily JSON request logs are stored under `storage/logs/`. Passwords, tokens, cookies, authorization headers, and other
@@ -251,31 +263,32 @@ Global restrictions live in `config/app.php`. Files are stored under the private
 ## Commands
 
 ```bash
-php migrate.php status
-php migrate.php migrate
-php migrate.php rollback
-php seed.php
+php cli/migrate.php status
+php cli/migrate.php migrate
+php cli/migrate.php rollback
+php cli/seed.php
 
-php rate-limit status 192.0.2.10
-php rate-limit block 192.0.2.10
-php rate-limit clear 192.0.2.10
-php rate-limit blocked
+php cli/rate-limit status 192.0.2.10
+php cli/rate-limit block 192.0.2.10
+php cli/rate-limit clear 192.0.2.10
+php cli/rate-limit blocked
 ```
 
 Format the project with PhpStorm closed:
 
 ```bash
-./format
-./format --check
+./cli/format
+./cli/format --check
 ```
 
 ## Production checklist
 
 - Set `APP_ENV=production` and `APP_DEBUG=false`
-- Use a long random `JWT_SECRET`
+- Keep a unique `JWT_SECRET` of at least 32 random bytes (also required locally)
+- Prefer Apache `DocumentRoot` of `public/` in dedicated hosting; the project-root `.htaccess` already blocks source and storage on MAMP
 - Use a restricted database account
 - Change or remove seeded credentials
-- Configure exact comma-separated `CORS_ORIGINS` and trusted proxies
+- Configure exact comma-separated `CORS_ORIGINS` (never `*`) and trusted proxies
 - Enable HTTPS
 - Keep `.env` and `storage/` private
 - Restrict `database-backups.download` to trusted administrators

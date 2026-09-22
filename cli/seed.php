@@ -11,10 +11,12 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-require __DIR__ . '/bootstrap.php';
-require __DIR__ . '/seeders/DatabaseSeeder.php';
+$root = dirname(__DIR__);
 
-$config = require __DIR__ . '/config/app.php';
+require $root . '/src/bootstrap.php';
+require $root . '/seeders/DatabaseSeeder.php';
+
+$config = require $root . '/config/app.php';
 Database::configure($config['databases'] ?? []);
 Password::configure($config['password'] ?? []);
 

@@ -12,6 +12,7 @@ ExpressPHP is a zero-dependency PHP micro-framework and REST API starter kit. Ke
 - Models own database access and domain queries.
 - Middleware handles authentication and authorization.
 - Routes belong in `routes/api.php`.
+- CLI tools belong in `cli/`.
 - Runtime data belongs under `storage/` and must remain private.
 
 Do not move application behavior into `src/`. Do not add empty base classes or static model facades without a concrete need.
@@ -57,6 +58,7 @@ This project intentionally has no Composer dependencies. Prefer core PHP and exi
 
 - Treat authentication, uploads, email, logs, and rate limiting as security-sensitive.
 - Keep `.env`, `storage/`, logs, uploads, and limiter state inaccessible through Apache.
+- Require a unique `JWT_SECRET` of at least 32 bytes in every environment.
 - Redact secrets in logs.
 - Validate uploaded file extension and detected MIME type.
 - Generate stored filenames and reject client paths.
@@ -73,7 +75,7 @@ php -l path/to/file.php
 Lint all project PHP:
 
 ```bash
-find app src config migrations routes seeders -name '*.php' -print0 | xargs -0 -n1 php -l
+find app cli src config migrations public routes seeders -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
 Validate the test client:
@@ -87,8 +89,8 @@ Use `http://localhost/expressphp/tests/` for end-to-end checks. Do not send real
 PhpStorm must be closed before formatting:
 
 ```bash
-./format
-./format --check
+./cli/format
+./cli/format --check
 ```
 
 ## Working practices

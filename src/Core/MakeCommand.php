@@ -190,9 +190,9 @@ PHP;
     private function help(): void
     {
         echo "ExpressPHP generator\n\n";
-        echo "  php make migration action_description\n";
-        echo "  php make controller User\n";
-        echo "  php make model User\n";
-        echo "  php make middleware IsAuthenticated\n";
+        echo "  php cli/make migration action_description\n";
+        echo "  php cli/make controller User\n";
+        echo "  php cli/make model User\n";
+        echo "  php cli/make middleware IsAuthenticated\n";
     }
 }

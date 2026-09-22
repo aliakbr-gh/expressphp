@@ -8,7 +8,7 @@ use RuntimeException;
 
 final class Password
 {
-    private static int $bcryptCost = 10;
+    private static int $bcryptCost = 12;
 
     public static function configure(array $config): void
     {

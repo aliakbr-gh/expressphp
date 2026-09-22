@@ -10,10 +10,11 @@ RewriteEngine On
 RewriteCond %{HTTP:Authorization} ^(.+)$
 RewriteRule ^ - [E=HTTP_AUTHORIZATION:%1]
 
-# Framework internals, CLI tools, and project metadata must never be served directly.
-RewriteRule ^(?:AGENTS\.md|LICENSE|README\.md|bootstrap\.php|format|make|migrate\.php|rate-limit|seed\.php|app|config|migrations|routes|seeders|src|storage)(?:/|$) - [F,L,NC]
+# Source, storage, CLI, metadata, and the public/ copy of the front controller
+# must never be fetched as files. This applies in local MAMP and production.
+RewriteRule ^(?:\.git|public|cli|AGENTS\.md|LICENSE|README\.md|app|config|migrations|routes|seeders|src|storage)(?:/|$) - [F,L,NC]
 
-# Existing public assets may be served by Apache; everything else enters the app.
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
+# Starter HTML client. Everything else is the front controller, even if a file exists.
+RewriteRule ^tests(?:/|$) - [L]
+RewriteRule ^index\.php$ - [L]
 RewriteRule ^ index.php [QSA,L]

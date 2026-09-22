@@ -6,33 +6,35 @@ $environment = getenv('APP_ENV') ?: 'development';
 $debugEnvironment = getenv('APP_DEBUG');
 $debugEnabled = $debugEnvironment !== false
     && filter_var($debugEnvironment, FILTER_VALIDATE_BOOL);
-$JWTSecret = getenv('JWT_SECRET') ?: 'expressphp-development-secret-change-this-before-production-2026';
+$JWTSecret = trim((string)(getenv('JWT_SECRET') ?: ''));
+$knownJWTSecrets = [
+    'expressphp-development-secret-change-this-before-production-2026',
+    'change-this-to-a-random-secret-with-at-least-32-bytes',
+];
 $CORSOrigins = array_values(array_filter(array_map(
     'trim',
-    explode(',', (string)(getenv('CORS_ORIGINS') ?: '*')),
+    explode(',', (string)(getenv('CORS_ORIGINS') ?: 'http://localhost')),
 )));
 
+$required = ['JWT_SECRET', 'DB_HOST', 'DB_DATABASE', 'DB_USERNAME'];
 if ($environment === 'production') {
-    $required = ['JWT_SECRET', 'DB_HOST', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD'];
-    $missing = array_values(array_filter(
-        $required,
-        static fn(string $name): bool => getenv($name) === false || trim((string)getenv($name)) === '',
-    ));
-    if ($missing !== []) {
-        throw new RuntimeException('Missing required production configuration: ' . implode(', ', $missing));
-    }
-    if ($debugEnabled) {
-        throw new RuntimeException('APP_DEBUG must be false in production.');
-    }
-    if (
-        $JWTSecret === 'expressphp-development-secret-change-this-before-production-2026'
-        || strlen($JWTSecret) < 32
-    ) {
-        throw new RuntimeException('JWT_SECRET must contain at least 32 non-default bytes in production.');
-    }
-    if ($CORSOrigins === [] || in_array('*', $CORSOrigins, true)) {
-        throw new RuntimeException('CORS_ORIGINS must list explicit origins in production.');
-    }
+    $required[] = 'DB_PASSWORD';
+}
+$missing = array_values(array_filter(
+    $required,
+    static fn(string $name): bool => getenv($name) === false || trim((string)getenv($name)) === '',
+));
+if ($missing !== []) {
+    throw new RuntimeException('Missing required configuration: ' . implode(', ', $missing));
+}
+if ($environment === 'production' && $debugEnabled) {
+    throw new RuntimeException('APP_DEBUG must be false in production.');
+}
+if (strlen($JWTSecret) < 32 || in_array($JWTSecret, $knownJWTSecrets, true)) {
+    throw new RuntimeException('JWT_SECRET must contain at least 32 random bytes in every environment. Set it in .env.');
+}
+if ($CORSOrigins === [] || in_array('*', $CORSOrigins, true)) {
+    throw new RuntimeException('CORS_ORIGINS must list explicit origins in every environment.');
 }
 
 return [
@@ -57,13 +59,13 @@ return [
     ],
 
     'rate_limiter' => [
-        'enabled' => true,
-        'max_requests' => 10,
-        'window_seconds' => 1,
-        'pause_minutes' => 5,
-        'max_violations' => 3,
-        'block_minutes' => 30,
-        'violation_decay_minutes' => 60,
+        'enabled' => filter_var(getenv('RATE_LIMIT_ENABLED') ?: true, FILTER_VALIDATE_BOOL),
+        'max_requests' => max(1, (int)(getenv('RATE_LIMIT_MAX_REQUESTS') ?: 120)),
+        'window_seconds' => max(1, (int)(getenv('RATE_LIMIT_WINDOW_SECONDS') ?: 60)),
+        'pause_minutes' => max(1, (int)(getenv('RATE_LIMIT_PAUSE_MINUTES') ?: 5)),
+        'max_violations' => max(1, (int)(getenv('RATE_LIMIT_MAX_VIOLATIONS') ?: 5)),
+        'block_minutes' => max(1, (int)(getenv('RATE_LIMIT_BLOCK_MINUTES') ?: 30)),
+        'violation_decay_minutes' => max(1, (int)(getenv('RATE_LIMIT_VIOLATION_DECAY_MINUTES') ?: 60)),
         'path' => dirname(__DIR__) . '/storage/rate-limiter',
         'except' => [
             '/api/v1/health/server',
@@ -83,12 +85,12 @@ return [
         'secret' => $JWTSecret,
         'issuer' => getenv('JWT_ISSUER') ?: 'expressphp',
         'audience' => getenv('JWT_AUDIENCE') ?: 'expressphp-api',
-        'ttl' => (int)(getenv('JWT_TTL') ?: 3600),
+        'ttl' => (int)(getenv('JWT_TTL') ?: 86400),
         'leeway' => (int)(getenv('JWT_LEEWAY') ?: 5),
     ],
 
     'password' => [
-        'bcrypt_cost' => (int)(getenv('PASSWORD_BCRYPT_COST') ?: 10),
+        'bcrypt_cost' => (int)(getenv('PASSWORD_BCRYPT_COST') ?: 12),
     ],
 
     'mail' => [
