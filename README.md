@@ -190,7 +190,14 @@ GET /api/v1/health/server
 GET /api/v1/health/database
 GET /api/v1/activity-logs?date=2026-08-25&limit=20&offset=0
 GET /api/v1/server-logs?date=2026-08-25&limit=20&offset=0
+GET /api/v1/rate-limits/blocked?limit=20&offset=0
+GET /api/v1/rate-limits/status?ip=192.0.2.10
+POST /api/v1/rate-limits/block
+POST /api/v1/rate-limits/clear
 ```
+
+Block and clear accept `{"ip":"192.0.2.10"}`. These match the `php rate-limit` commands and require `rate-limits.view`,
+`rate-limits.block`, or `rate-limits.clear`.
 
 Daily JSON request logs are stored under `storage/logs/`. Passwords, tokens, cookies, authorization headers, and other
 sensitive fields are redacted.

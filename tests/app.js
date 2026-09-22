@@ -5,6 +5,7 @@ const elements = {
     limit: document.querySelector('#limit'),
     offset: document.querySelector('#offset'),
     logDate: document.querySelector('#logDate'),
+    rateLimitIp: document.querySelector('#rateLimitIp'),
     emailMailer: document.querySelector('#emailMailer'),
     emailTo: document.querySelector('#emailTo'),
     emailSubject: document.querySelector('#emailSubject'),
@@ -165,6 +166,18 @@ const actions = {
     users: () => displayRequest(`/users?${pageQuery()}`),
     activities: () => displayRequest(`/activity-logs?${datedPageQuery()}`),
     'server-logs': () => displayRequest(`/server-logs?${datedPageQuery()}`),
+    'rate-limit-blocked': () => displayRequest(`/rate-limits/blocked?${pageQuery()}`),
+    'rate-limit-status': () => displayRequest(
+        `/rate-limits/status?ip=${encodeURIComponent(elements.rateLimitIp.value)}`,
+    ),
+    'rate-limit-block': () => displayRequest('/rate-limits/block', {
+        method: 'POST',
+        body: {ip: elements.rateLimitIp.value},
+    }),
+    'rate-limit-clear': () => displayRequest('/rate-limits/clear', {
+        method: 'POST',
+        body: {ip: elements.rateLimitIp.value},
+    }),
     'email-logs': () => displayRequest(`/emails?${datedPageQuery()}`),
     'send-email': () => displayRequest('/emails/send', {
         method: 'POST',
@@ -330,6 +343,16 @@ async function runFullFlow() {
         await flowStep('paginated activity logs', '/activity-logs?limit=10&offset=0');
         await flowStep('dated server logs', `/server-logs?limit=10&offset=0&date=${elements.logDate.value}`);
         await flowStep('dated email logs', `/emails?limit=10&offset=0&date=${elements.logDate.value}`);
+        await flowStep('rate-limit status', `/rate-limits/status?ip=${encodeURIComponent(elements.rateLimitIp.value)}`);
+        await flowStep('rate-limit block', '/rate-limits/block', {
+            method: 'POST',
+            body: {ip: elements.rateLimitIp.value},
+        });
+        await flowStep('blocked IP list', '/rate-limits/blocked?limit=10&offset=0');
+        await flowStep('rate-limit clear', '/rate-limits/clear', {
+            method: 'POST',
+            body: {ip: elements.rateLimitIp.value},
+        });
 
         await flowStep('delete temporary user', `/users/${userId}`, {method: 'DELETE'});
         userId = null;

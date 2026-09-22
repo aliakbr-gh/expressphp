@@ -10,6 +10,7 @@ use App\Controllers\EmailController;
 use App\Controllers\FileController;
 use App\Controllers\PermissionController;
 use App\Controllers\RoleController;
+use App\Controllers\RateLimitController;
 use App\Controllers\ServerLogController;
 use App\Controllers\UserController;
 use ExpressPHP\Routing\Router;
@@ -75,6 +76,21 @@ return static function (Application $app): void {
             'auth',
             'permission:server-logs.view',
         ]);
+
+        $router->group('/rate-limits', ['auth'], static function (Router $router): void {
+            $router->get('/blocked', [RateLimitController::class, 'blocked'], [
+                'permission:rate-limits.view',
+            ]);
+            $router->get('/status', [RateLimitController::class, 'status'], [
+                'permission:rate-limits.view',
+            ]);
+            $router->post('/block', [RateLimitController::class, 'block'], [
+                'permission:rate-limits.block',
+            ]);
+            $router->post('/clear', [RateLimitController::class, 'clear'], [
+                'permission:rate-limits.clear',
+            ]);
+        });
 
         $router->group('/emails', ['auth'], static function (Router $router): void {
             $router->get('/', [EmailController::class, 'index'], ['permission:emails.view']);

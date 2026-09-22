@@ -111,6 +111,7 @@ final class Validator
             'list' => [is_array($value)
                 && array_is_list($value) && !in_array($field, $jsonObjectPaths, true), $value],
             'email' => [is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL) !== false, $value],
+            'ip' => [is_string($value) && filter_var($value, FILTER_VALIDATE_IP) !== false, $value],
             'url' => [is_string($value) && filter_var($value, FILTER_VALIDATE_URL) !== false, $value],
             'min' => [self::size($value) >= (float)($parameters[0] ?? 0), $value],
             'max' => [self::size($value) <= (float)($parameters[0] ?? INF), $value],
@@ -216,6 +217,7 @@ final class Validator
             'object' => 'The :attribute field must be an object.',
             'list' => 'The :attribute field must be a list.',
             'email' => 'The :attribute field must contain a valid email address.',
+            'ip' => 'The :attribute field must contain a valid IP address.',
             'url' => 'The :attribute field must contain a valid URL.',
             'min' => 'The :attribute field must be at least :min.',
             'max' => 'The :attribute field may not be greater than :min.',

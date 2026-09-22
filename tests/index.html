@@ -194,6 +194,18 @@
         </section>
 
         <section class="card">
+            <h2>Rate limits</h2>
+            <label for="rateLimitIp">IP address</label>
+            <input id="rateLimitIp" value="192.0.2.10">
+            <div class="buttons">
+                <button data-action="rate-limit-status">Status</button>
+                <button data-action="rate-limit-block">Block IP</button>
+                <button data-action="rate-limit-clear">Clear IP</button>
+                <button data-action="rate-limit-blocked">Blocked list</button>
+            </div>
+        </section>
+
+        <section class="card">
             <h2>Create role</h2>
             <label for="roleName">Name</label>
             <input id="roleName" value="Content Editor">
