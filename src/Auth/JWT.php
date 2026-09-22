@@ -38,15 +38,15 @@ final class JWT
         $header = ['typ' => 'JWT', 'alg' => self::ALGORITHM];
 
         try {
-            $encodedHeader = self::base64UrlEncode(json_encode($header, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
-            $encodedPayload = self::base64UrlEncode(json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+            $encodedHeader = self::base64URLEncode(json_encode($header, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+            $encodedPayload = self::base64URLEncode(json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         } catch (JsonException $exception) {
             throw new JWTException('JWT payload could not be encoded.', previous: $exception);
         }
 
         $signingInput = $encodedHeader . '.' . $encodedPayload;
         $signature = hash_hmac('sha256', $signingInput, $secret, true);
-        return $signingInput . '.' . self::base64UrlEncode($signature);
+        return $signingInput . '.' . self::base64URLEncode($signature);
     }
 
     public static function decode(string $token): array
@@ -57,9 +57,9 @@ final class JWT
         }
 
         [$encodedHeader, $encodedPayload, $encodedSignature] = $segments;
-        $header = self::decodeJson($encodedHeader, 'header');
-        $payload = self::decodeJson($encodedPayload, 'payload');
-        $signature = self::base64UrlDecode($encodedSignature);
+        $header = self::decodeJSON($encodedHeader, 'header');
+        $payload = self::decodeJSON($encodedPayload, 'payload');
+        $signature = self::base64URLDecode($encodedSignature);
 
         if (($header['typ'] ?? null) !== 'JWT' || ($header['alg'] ?? null) !== self::ALGORITHM) {
             throw new JWTException('Unsupported JWT header.');
@@ -113,10 +113,10 @@ final class JWT
         }
     }
 
-    private static function decodeJson(string $encoded, string $part): array
+    private static function decodeJSON(string $encoded, string $part): array
     {
         try {
-            $decoded = json_decode(self::base64UrlDecode($encoded), true, 32, JSON_THROW_ON_ERROR);
+            $decoded = json_decode(self::base64URLDecode($encoded), true, 32, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
             throw new JWTException("Invalid JWT {$part} JSON.", previous: $exception);
         }
@@ -126,12 +126,12 @@ final class JWT
         return $decoded;
     }
 
-    private static function base64UrlEncode(string $value): string
+    private static function base64URLEncode(string $value): string
     {
         return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 
-    private static function base64UrlDecode(string $value): string
+    private static function base64URLDecode(string $value): string
     {
         if ($value === '' || preg_match('/^[A-Za-z0-9_-]+$/', $value) !== 1) {
             throw new JWTException('Invalid Base64URL value in JWT.');

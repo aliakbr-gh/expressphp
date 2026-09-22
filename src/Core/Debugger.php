@@ -60,7 +60,7 @@ final class Debugger
             ),
             'request' => $request === null ? null : [
                 'method' => $request->method(),
-                'url' => $request->originalUrl(),
+                'url' => $request->originalURL(),
                 'path' => $request->path(),
                 'ip' => $request->ip(),
                 'query' => self::redact($request->query()),
@@ -82,7 +82,7 @@ final class Debugger
             ],
         ];
 
-        self::emitHtml($status, $data);
+        self::emitHTML($status, $data);
     }
 
     private static function emit(int $status, array $payload): never
@@ -111,7 +111,7 @@ final class Debugger
         exit;
     }
 
-    private static function emitHtml(int $status, array $data): never
+    private static function emitHTML(int $status, array $data): never
     {
         while (ob_get_level() > 0) {
             ob_end_clean();

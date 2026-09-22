@@ -58,7 +58,7 @@ final class RequestLogger
                 'timestamp' => $now->format(DATE_ATOM),
                 'request_id' => $request->header('X-Request-ID') ?? bin2hex(random_bytes(8)),
                 'method' => $request->method(),
-                'url' => $request->originalUrl(),
+                'url' => $request->originalURL(),
                 'path' => $request->path(),
                 'status' => $response->statusCode(),
                 'duration_ms' => round((microtime(true) - $startedAt) * 1000, 3),

@@ -14,7 +14,7 @@ final class Validator
         array $input,
         array $rules,
         array $messages = [],
-        array $jsonObjectPaths = [],
+        array $JSONObjectPaths = [],
     ): array
     {
         $validated = [];
@@ -69,7 +69,7 @@ final class Validator
                     $parameters,
                     $input,
                     (string)$field,
-                    $jsonObjectPaths,
+                    $JSONObjectPaths,
                 );
                 if (!$valid) {
                     self::addError($errors, $messages, (string)$field, $rule, $parameters);
@@ -96,7 +96,7 @@ final class Validator
         array $parameters,
         array $input,
         string $field,
-        array $jsonObjectPaths,
+        array $JSONObjectPaths,
     ): array
     {
         return match ($rule) {
@@ -107,9 +107,9 @@ final class Validator
             'boolean' => self::boolean($value),
             'array' => [is_array($value), $value],
             'object' => [is_array($value)
-                && (!array_is_list($value) || in_array($field, $jsonObjectPaths, true)), $value],
+                && (!array_is_list($value) || in_array($field, $JSONObjectPaths, true)), $value],
             'list' => [is_array($value)
-                && array_is_list($value) && !in_array($field, $jsonObjectPaths, true), $value],
+                && array_is_list($value) && !in_array($field, $JSONObjectPaths, true), $value],
             'email' => [is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL) !== false, $value],
             'ip' => [is_string($value) && filter_var($value, FILTER_VALIDATE_IP) !== false, $value],
             'url' => [is_string($value) && filter_var($value, FILTER_VALIDATE_URL) !== false, $value],

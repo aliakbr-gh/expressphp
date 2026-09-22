@@ -23,10 +23,10 @@ final class DatabaseBackup
     /**
      * @return array{path: string, sql_path: string, filename: string}
      */
-    public function createZip(): array
+    public function createZIP(): array
     {
         if (!class_exists(ZipArchive::class)) {
-            throw new RuntimeException('The Zip PHP extension is required for database backups.');
+            throw new RuntimeException('The ZIP PHP extension is required for database backups.');
         }
 
         $this->ensureDirectory();
@@ -39,7 +39,7 @@ final class DatabaseBackup
         $filename = $basename . '.zip';
 
         try {
-            $this->writeSql($sqlPath, $basename . '.sql', $stamp);
+            $this->writeSQL($sqlPath, $basename . '.sql', $stamp);
             $archive = new ZipArchive();
             if ($archive->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
                 throw new RuntimeException('Unable to create the backup archive.');
@@ -62,7 +62,7 @@ final class DatabaseBackup
         ];
     }
 
-    private function writeSql(string $sqlPath, string $sqlName, string $stamp): void
+    private function writeSQL(string $sqlPath, string $sqlName, string $stamp): void
     {
         $handle = fopen($sqlPath, 'wb');
         if ($handle === false) {
@@ -120,7 +120,7 @@ final class DatabaseBackup
             foreach ($rows as $row) {
                 $values = [];
                 foreach ($row as $value) {
-                    $values[] = $this->sqlValue($value);
+                    $values[] = $this->SQLValue($value);
                 }
                 $this->write(
                     $handle,
@@ -132,7 +132,7 @@ final class DatabaseBackup
         }
     }
 
-    private function sqlValue(mixed $value): string
+    private function SQLValue(mixed $value): string
     {
         if ($value === null) {
             return 'NULL';

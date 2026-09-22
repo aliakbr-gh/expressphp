@@ -1,11 +1,11 @@
 const elements = {
-    apiBase: document.querySelector('#apiBase'),
+    APIBase: document.querySelector('#APIBase'),
     username: document.querySelector('#username'),
     password: document.querySelector('#password'),
     limit: document.querySelector('#limit'),
     offset: document.querySelector('#offset'),
     logDate: document.querySelector('#logDate'),
-    rateLimitIp: document.querySelector('#rateLimitIp'),
+    rateLimitIP: document.querySelector('#rateLimitIP'),
     emailMailer: document.querySelector('#emailMailer'),
     emailTo: document.querySelector('#emailTo'),
     emailSubject: document.querySelector('#emailSubject'),
@@ -23,7 +23,7 @@ const projectBase = testsPathIndex >= 0
     ? location.pathname.slice(0, testsPathIndex)
     : '';
 
-elements.apiBase.value = `http://localhost/expressphp/api/v1`;
+elements.APIBase.value = `http://localhost/expressphp/api/v1`;
 elements.logDate.value = new Date().toLocaleDateString('en-CA');
 
 let accessToken = '';
@@ -59,7 +59,7 @@ function datedPageQuery() {
     return `${pageQuery()}&date=${encodeURIComponent(elements.logDate.value)}`;
 }
 
-async function api(path, options = {}) {
+async function requestAPI(path, options = {}) {
     const headers = {Accept: 'application/json', ...(options.headers || {})};
     if (accessToken && options.auth !== false) {
         headers.Authorization = `Bearer ${accessToken}`;
@@ -68,7 +68,7 @@ async function api(path, options = {}) {
         headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(`${elements.apiBase.value.replace(/\/$/, '')}${path}`, {
+    const response = await fetch(`${elements.APIBase.value.replace(/\/$/, '')}${path}`, {
         method: options.method || 'GET',
         headers,
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -95,7 +95,7 @@ async function api(path, options = {}) {
 }
 
 async function displayRequest(path, options = {}) {
-    const result = await api(path, options);
+    const result = await requestAPI(path, options);
     setOutput(result);
     return result;
 }
@@ -111,7 +111,7 @@ async function uploadFile() {
     const headers = {Accept: 'application/json'};
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-    const response = await fetch(`${elements.apiBase.value.replace(/\/$/, '')}/files/upload`, {
+    const response = await fetch(`${elements.APIBase.value.replace(/\/$/, '')}/files/upload`, {
         method: 'POST',
         headers,
         body: formData,
@@ -131,7 +131,7 @@ async function downloadBackup() {
         headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(`${elements.apiBase.value.replace(/\/$/, '')}/database-backups/download`, {
+    const response = await fetch(`${elements.APIBase.value.replace(/\/$/, '')}/database-backups/download`, {
         method: 'GET',
         headers,
     });
@@ -166,7 +166,7 @@ async function downloadBackup() {
 }
 
 async function login() {
-    const result = await api('/auth/login', {
+    const result = await requestAPI('/auth/login', {
         method: 'POST',
         auth: false,
         body: {
@@ -208,15 +208,15 @@ const actions = {
     'server-logs': () => displayRequest(`/server-logs?${datedPageQuery()}`),
     'rate-limit-blocked': () => displayRequest(`/rate-limits/blocked?${pageQuery()}`),
     'rate-limit-status': () => displayRequest(
-        `/rate-limits/status?ip=${encodeURIComponent(elements.rateLimitIp.value)}`,
+        `/rate-limits/status?ip=${encodeURIComponent(elements.rateLimitIP.value)}`,
     ),
     'rate-limit-block': () => displayRequest('/rate-limits/block', {
         method: 'POST',
-        body: {ip: elements.rateLimitIp.value},
+        body: {ip: elements.rateLimitIP.value},
     }),
     'rate-limit-clear': () => displayRequest('/rate-limits/clear', {
         method: 'POST',
-        body: {ip: elements.rateLimitIp.value},
+        body: {ip: elements.rateLimitIP.value},
     }),
     'email-logs': () => displayRequest(`/emails?${datedPageQuery()}`),
     'send-email': () => displayRequest('/emails/send', {
@@ -300,7 +300,7 @@ const wait = milliseconds => new Promise(resolve => setTimeout(resolve, millisec
 
 async function flowStep(label, path, options = {}, expected = [200]) {
     await wait(175);
-    const result = await api(path, options);
+    const result = await requestAPI(path, options);
     const passed = expected.includes(result.status);
     appendOutput(`${passed ? 'PASS' : 'FAIL'} ${label} [${result.status}]`);
     if (!passed) {
@@ -384,15 +384,15 @@ async function runFullFlow() {
         await flowStep('paginated activity logs', '/activity-logs?limit=10&offset=0');
         await flowStep('dated server logs', `/server-logs?limit=10&offset=0&date=${elements.logDate.value}`);
         await flowStep('dated email logs', `/emails?limit=10&offset=0&date=${elements.logDate.value}`);
-        await flowStep('rate-limit status', `/rate-limits/status?ip=${encodeURIComponent(elements.rateLimitIp.value)}`);
+        await flowStep('rate-limit status', `/rate-limits/status?ip=${encodeURIComponent(elements.rateLimitIP.value)}`);
         await flowStep('rate-limit block', '/rate-limits/block', {
             method: 'POST',
-            body: {ip: elements.rateLimitIp.value},
+            body: {ip: elements.rateLimitIP.value},
         });
         await flowStep('blocked IP list', '/rate-limits/blocked?limit=10&offset=0');
         await flowStep('rate-limit clear', '/rate-limits/clear', {
             method: 'POST',
-            body: {ip: elements.rateLimitIp.value},
+            body: {ip: elements.rateLimitIP.value},
         });
 
         await flowStep('delete temporary user', `/users/${userId}`, {method: 'DELETE'});

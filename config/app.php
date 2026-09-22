@@ -6,8 +6,8 @@ $environment = getenv('APP_ENV') ?: 'development';
 $debugEnvironment = getenv('APP_DEBUG');
 $debugEnabled = $debugEnvironment !== false
     && filter_var($debugEnvironment, FILTER_VALIDATE_BOOL);
-$jwtSecret = getenv('JWT_SECRET') ?: 'expressphp-development-secret-change-this-before-production-2026';
-$corsOrigins = array_values(array_filter(array_map(
+$JWTSecret = getenv('JWT_SECRET') ?: 'expressphp-development-secret-change-this-before-production-2026';
+$CORSOrigins = array_values(array_filter(array_map(
     'trim',
     explode(',', (string)(getenv('CORS_ORIGINS') ?: '*')),
 )));
@@ -25,12 +25,12 @@ if ($environment === 'production') {
         throw new RuntimeException('APP_DEBUG must be false in production.');
     }
     if (
-        $jwtSecret === 'expressphp-development-secret-change-this-before-production-2026'
-        || strlen($jwtSecret) < 32
+        $JWTSecret === 'expressphp-development-secret-change-this-before-production-2026'
+        || strlen($JWTSecret) < 32
     ) {
         throw new RuntimeException('JWT_SECRET must contain at least 32 non-default bytes in production.');
     }
-    if ($corsOrigins === [] || in_array('*', $corsOrigins, true)) {
+    if ($CORSOrigins === [] || in_array('*', $CORSOrigins, true)) {
         throw new RuntimeException('CORS_ORIGINS must list explicit origins in production.');
     }
 }
@@ -80,7 +80,7 @@ return [
 
     'jwt' => [
         // Always set JWT_SECRET to a long random value in production.
-        'secret' => $jwtSecret,
+        'secret' => $JWTSecret,
         'issuer' => getenv('JWT_ISSUER') ?: 'expressphp',
         'audience' => getenv('JWT_AUDIENCE') ?: 'expressphp-api',
         'ttl' => (int)(getenv('JWT_TTL') ?: 3600),
@@ -182,7 +182,7 @@ return [
 
     'cors' => [
         'enabled' => true,
-        'origins' => $corsOrigins,
+        'origins' => $CORSOrigins,
         'methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         'headers' => ['Accept', 'Authorization', 'Content-Type', 'Origin', 'X-Requested-With'],
         'expose_headers' => [

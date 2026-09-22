@@ -22,11 +22,11 @@ final class FileUploader
         $originalName = $this->originalName($file);
         $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
         $size = (int)($file['size'] ?? 0);
-        $mimeType = $this->mimeType((string)$file['tmp_name']);
+        $MIMEType = $this->MIMEType((string)$file['tmp_name']);
 
         $this->validateSize($size, (int)($config['max_size'] ?? 10 * 1024 * 1024));
         $this->validateAllowed($extension, $config['allowed_extensions'] ?? [], 'extension');
-        $this->validateMimeType($extension, $mimeType, $config);
+        $this->validateMIMEType($extension, $MIMEType, $config);
 
         $root = $this->root($config);
         $subdirectory = $this->subdirectory($directory);
@@ -44,7 +44,7 @@ final class FileUploader
             'original_name' => $originalName,
             'stored_name' => $storedName,
             'extension' => $extension,
-            'mime_type' => $mimeType,
+            'mime_type' => $MIMEType,
             'size' => $size,
             'path' => $destination,
             'relative_path' => ltrim($subdirectory . '/' . $storedName, '/'),
@@ -89,10 +89,10 @@ final class FileUploader
         return trim($name, '. ') === '' ? 'file' : $name;
     }
 
-    private function mimeType(string $path): string
+    private function MIMEType(string $path): string
     {
-        $mimeType = (new finfo(FILEINFO_MIME_TYPE))->file($path);
-        return is_string($mimeType) && $mimeType !== '' ? strtolower($mimeType) : 'application/octet-stream';
+        $MIMEType = (new finfo(FILEINFO_MIME_TYPE))->file($path);
+        return is_string($MIMEType) && $MIMEType !== '' ? strtolower($MIMEType) : 'application/octet-stream';
     }
 
     private function validateSize(int $size, int $maximum): void
@@ -113,7 +113,7 @@ final class FileUploader
         }
     }
 
-    private function validateMimeType(string $extension, string $mimeType, array $config): void
+    private function validateMIMEType(string $extension, string $MIMEType, array $config): void
     {
         $mapping = $config['mime_types_by_extension'] ?? [];
         if (is_array($mapping) && $mapping !== []) {
@@ -121,11 +121,11 @@ final class FileUploader
             if (!is_array($allowed) || $allowed === []) {
                 throw new FileUploadException('The uploaded file extension has no MIME type policy.');
             }
-            $this->validateAllowed($mimeType, $allowed, 'MIME type');
+            $this->validateAllowed($MIMEType, $allowed, 'MIME type');
             return;
         }
 
-        $this->validateAllowed($mimeType, $config['allowed_mime_types'] ?? [], 'MIME type');
+        $this->validateAllowed($MIMEType, $config['allowed_mime_types'] ?? [], 'MIME type');
     }
 
     private function root(array $config): string

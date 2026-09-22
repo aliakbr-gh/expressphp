@@ -92,24 +92,24 @@ final class Application
     public function dispatch(Request $request): Response
     {
         Debugger::setRequest($request);
-        $cors = new CORS($this->config['cors'] ?? []);
+        $CORS = new CORS($this->config['cors'] ?? []);
         $decision = null;
 
         try {
             if ($request->method() === 'OPTIONS') {
-                return $cors->apply($request, $this->securityHeaders((new Response())->noContent(), $request));
+                return $CORS->apply($request, $this->securityHeaders((new Response())->noContent(), $request));
             }
 
             $decision = $this->rateLimiter->check($request);
             if (!$decision->allowed) {
-                return $cors->apply(
+                return $CORS->apply(
                     $request,
                     $this->securityHeaders($this->rateLimitResponse($decision), $request),
                 );
             }
 
             $response = $this->router->dispatch($request, new Response());
-            return $cors->apply(
+            return $CORS->apply(
                 $request,
                 $this->securityHeaders($this->rateLimitHeaders($response, $decision), $request),
             );
@@ -133,7 +133,7 @@ final class Application
             $response = $this->rateLimitHeaders($response, $decision);
         }
 
-        return $cors->apply($request, $this->securityHeaders($response, $request));
+        return $CORS->apply($request, $this->securityHeaders($response, $request));
     }
 
     public function run(?Request $request = null): never

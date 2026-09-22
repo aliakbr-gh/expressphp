@@ -33,7 +33,7 @@ final class DatabaseBackupController
                 (string)($config['backups']['path'] ?? dirname(__DIR__, 2) . '/storage/backups'),
                 (string)($config['timezone'] ?? 'UTC'),
             );
-            $archive = $backup->createZip();
+            $archive = $backup->createZIP();
         } catch (Throwable) {
             return $response->error('Unable to create the database backup', 500);
         }

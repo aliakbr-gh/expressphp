@@ -11,8 +11,8 @@ final class Request
 {
     private array $params = [];
     private bool $jsonDecoded = false;
-    private mixed $decodedJson = null;
-    private array $jsonObjectPaths = [];
+    private mixed $decodedJSON = null;
+    private array $JSONObjectPaths = [];
     private ?array $parsedForm = null;
     private ?array $authenticatedUser = null;
 
@@ -77,11 +77,11 @@ final class Request
         if (!$this->jsonDecoded) {
             try {
                 if ($this->rawBody === '') {
-                    $this->decodedJson = [];
+                    $this->decodedJSON = [];
                 } else {
-                    $this->decodedJson = json_decode($this->rawBody, true, 512, JSON_THROW_ON_ERROR);
-                    $jsonShape = json_decode($this->rawBody, false, 512, JSON_THROW_ON_ERROR);
-                    $this->collectJsonObjectPaths($jsonShape);
+                    $this->decodedJSON = json_decode($this->rawBody, true, 512, JSON_THROW_ON_ERROR);
+                    $JSONShape = json_decode($this->rawBody, false, 512, JSON_THROW_ON_ERROR);
+                    $this->collectJSONObjectPaths($JSONShape);
                 }
             } catch (JsonException) {
                 throw new HttpException('Malformed JSON request body', 400);
@@ -90,15 +90,15 @@ final class Request
         }
 
         if ($key === null) {
-            return $this->decodedJson;
+            return $this->decodedJSON;
         }
 
-        return is_array($this->decodedJson) ? ($this->decodedJson[$key] ?? $default) : $default;
+        return is_array($this->decodedJSON) ? ($this->decodedJSON[$key] ?? $default) : $default;
     }
 
     public function input(?string $key = null, mixed $default = null): mixed
     {
-        $data = $this->isJson() ? $this->json() : $this->formData();
+        $data = $this->isJSON() ? $this->json() : $this->formData();
 
         if ($key === null) {
             return $data;
@@ -115,7 +115,7 @@ final class Request
             array_replace_recursive($this->query, $input),
             $rules,
             $messages,
-            $this->isJson() ? $this->jsonObjectPaths : [],
+            $this->isJSON() ? $this->JSONObjectPaths : [],
         );
     }
 
@@ -129,15 +129,15 @@ final class Request
         return $key === null ? $this->query : ($this->query[$key] ?? $default);
     }
 
-    private function collectJsonObjectPaths(mixed $value, string $path = ''): void
+    private function collectJSONObjectPaths(mixed $value, string $path = ''): void
     {
         if ($value instanceof \stdClass) {
             if ($path !== '') {
-                $this->jsonObjectPaths[] = $path;
+                $this->JSONObjectPaths[] = $path;
             }
             foreach (get_object_vars($value) as $key => $child) {
                 $childPath = $path === '' ? (string)$key : $path . '.' . $key;
-                $this->collectJsonObjectPaths($child, $childPath);
+                $this->collectJSONObjectPaths($child, $childPath);
             }
             return;
         }
@@ -145,7 +145,7 @@ final class Request
         if (is_array($value)) {
             foreach ($value as $key => $child) {
                 $childPath = $path === '' ? (string)$key : $path . '.' . $key;
-                $this->collectJsonObjectPaths($child, $childPath);
+                $this->collectJSONObjectPaths($child, $childPath);
             }
         }
     }
@@ -198,7 +198,7 @@ final class Request
         return $headers;
     }
 
-    public function isJson(): bool
+    public function isJSON(): bool
     {
         return str_contains(strtolower($this->header('Content-Type', '') ?? ''), 'application/json');
     }
@@ -320,7 +320,7 @@ final class Request
         return $this->protocol() . '://' . $this->host() . $this->uri;
     }
 
-    public function originalUrl(): string
+    public function originalURL(): string
     {
         return $this->uri;
     }
