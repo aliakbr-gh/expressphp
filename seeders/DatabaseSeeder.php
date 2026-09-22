@@ -40,6 +40,7 @@ final class DatabaseSeeder
         ['View email logs', 'emails.view'],
         ['Send emails', 'emails.send'],
         ['Upload files', 'files.upload'],
+        ['Download database backups', 'database-backups.download'],
     ];
 
     public function run(PDO $database): array

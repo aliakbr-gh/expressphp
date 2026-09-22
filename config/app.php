@@ -74,6 +74,10 @@ return [
         ],
     ],
 
+    'backups' => [
+        'path' => dirname(__DIR__) . '/storage/backups',
+    ],
+
     'jwt' => [
         // Always set JWT_SECRET to a long random value in production.
         'secret' => $jwtSecret,
@@ -182,6 +186,7 @@ return [
         'methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         'headers' => ['Accept', 'Authorization', 'Content-Type', 'Origin', 'X-Requested-With'],
         'expose_headers' => [
+            'Content-Disposition',
             'Retry-After',
             'X-RateLimit-Limit',
             'X-RateLimit-Remaining',

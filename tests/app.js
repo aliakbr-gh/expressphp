@@ -125,6 +125,46 @@ async function uploadFile() {
     return result;
 }
 
+async function downloadBackup() {
+    const headers = {Accept: 'application/zip, application/json'};
+    if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(`${elements.apiBase.value.replace(/\/$/, '')}/database-backups/download`, {
+        method: 'GET',
+        headers,
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        let payload;
+        try {
+            payload = text === '' ? null : JSON.parse(text);
+        } catch {
+            payload = text;
+        }
+        setOutput({ok: false, status: response.status, payload});
+        return {ok: false, status: response.status, payload};
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const matched = disposition.match(/filename="([^"]+)"/);
+    const filename = matched?.[1] || 'database-backup.zip';
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    const result = {ok: true, status: response.status, filename, size: blob.size};
+    setOutput(result);
+    return result;
+}
+
 async function login() {
     const result = await api('/auth/login', {
         method: 'POST',
@@ -191,6 +231,7 @@ const actions = {
         },
     }),
     'upload-file': uploadFile,
+    'download-backup': downloadBackup,
     'create-role': async () => {
         const result = await displayRequest('/roles', {
             method: 'POST',

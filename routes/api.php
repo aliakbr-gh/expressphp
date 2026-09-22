@@ -5,6 +5,7 @@ declare(strict_types=1);
 use ExpressPHP\Core\Application;
 use App\Controllers\ActivityLogController;
 use App\Controllers\AuthController;
+use App\Controllers\DatabaseBackupController;
 use App\Controllers\HealthController;
 use App\Controllers\EmailController;
 use App\Controllers\FileController;
@@ -101,6 +102,11 @@ return static function (Application $app): void {
         $router->post('/files/upload', [FileController::class, 'upload'], [
             'auth',
             'permission:files.upload',
+        ]);
+
+        $router->get('/database-backups/download', [DatabaseBackupController::class, 'download'], [
+            'auth',
+            'permission:database-backups.download',
         ]);
 
         $router->group('/auth', static function (Router $router): void {

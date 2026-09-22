@@ -202,6 +202,16 @@ Block and clear accept `{"ip":"192.0.2.10"}`. These match the `php rate-limit` c
 Daily JSON request logs are stored under `storage/logs/`. Passwords, tokens, cookies, authorization headers, and other
 sensitive fields are redacted.
 
+## Database backups
+
+```text
+GET /api/v1/database-backups/download
+```
+
+This route takes no query parameters. It dumps the current database, zips it, and downloads a file named with the
+application timezone in 12-hour AM/PM form, for example `expressphp_db-2026-09-22-06-58-PM.zip`. Temporary files stay
+under private `storage/backups/` and are deleted after the response. The permission is `database-backups.download`.
+
 ## Email
 
 Configure generic SMTP or Gmail in `.env`:
@@ -268,6 +278,7 @@ Format the project with PhpStorm closed:
 - Configure exact comma-separated `CORS_ORIGINS` and trusted proxies
 - Enable HTTPS
 - Keep `.env` and `storage/` private
+- Restrict `database-backups.download` to trusted administrators
 - Configure PHP request and upload limits
 - Configure SMTP sender authentication
 - Monitor health checks and logs

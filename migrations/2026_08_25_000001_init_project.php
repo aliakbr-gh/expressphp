@@ -149,6 +149,7 @@ return new class extends Migration {
                      ['View email logs', 'emails.view'],
                      ['Send emails', 'emails.send'],
                      ['Upload files', 'files.upload'],
+                     ['Download database backups', 'database-backups.download'],
                  ] as [$name, $slug]) {
             $statement->execute(['name' => $name, 'slug' => $slug]);
         }

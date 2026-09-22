@@ -3,3 +3,5 @@
 /storage/rate-limiter/*.json
 /storage/uploads/*
 !/storage/uploads/.gitignore
+/storage/backups/*
+!/storage/backups/.gitignore
