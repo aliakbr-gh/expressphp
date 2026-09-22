@@ -13,6 +13,7 @@ ExpressPHP is a zero-dependency PHP micro-framework and REST API starter kit. Ke
 - Middleware handles authentication and authorization.
 - Routes belong in `routes/api.php`.
 - CLI tools belong in `cli/`.
+- The Fetch API test console lives in `tests/` and is served at `/tests/` on localhost only. Production hosts must return 403.
 - Runtime data belongs under `storage/` and must remain private.
 
 Do not move application behavior into `src/`. Do not add empty base classes or static model facades without a concrete need.
@@ -78,13 +79,7 @@ Lint all project PHP:
 find app cli src config migrations public routes seeders -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
-Validate the test client:
-
-```bash
-node --check tests/app.js
-```
-
-Use `http://localhost/expressphp/tests/` for end-to-end checks. Do not send real emails or mutate external systems during tests without explicit authorization.
+The API test console is at `/tests/` on local MAMP only (not production).
 
 PhpStorm must be closed before formatting:
 

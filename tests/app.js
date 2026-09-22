@@ -23,7 +23,7 @@ const projectBase = testsPathIndex >= 0
     ? location.pathname.slice(0, testsPathIndex)
     : '';
 
-elements.APIBase.value = `http://localhost/expressphp/api/v1`;
+elements.APIBase.value = `${location.origin}${projectBase}/api/v1`;
 elements.logDate.value = new Date().toLocaleDateString('en-CA');
 
 let accessToken = '';

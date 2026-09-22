@@ -18,7 +18,7 @@ It uses core PHP and PDO. There is no Composer or `vendor/` directory.
 - SMTP and Gmail email
 - Secure file uploads
 - CORS and trusted proxies
-- Raw HTML and Fetch API test console
+- HTML Fetch API test console at `/tests/` (localhost only)
 
 ## Requirements
 
@@ -56,12 +56,22 @@ Role: admin
 
 Change this password outside local development.
 
-With MAMP and this project under `htdocs/expressphp`, open:
+With MAMP and this project under `htdocs/expressphp`:
 
 ```text
 http://localhost/expressphp/api/v1/health/server
+http://localhost/expressphp/api/v1/auth/login
 http://localhost/expressphp/tests/
 ```
+
+Upload the whole project as the subdomain document root (for example `public_html` for `digi.100xsoftware.pk`). Then this works with no extra Apache DocumentRoot change:
+
+```text
+https://digi.100xsoftware.pk/api/v1/health/server
+https://digi.100xsoftware.pk/api/v1/auth/login
+```
+
+`/tests/` is a local API console only (`http://localhost/expressphp/tests/`). Production hosts forbid it. Set `APP_ENV=production`, `APP_DEBUG=false`, a unique `JWT_SECRET`, and `CORS_ORIGINS=https://digi.100xsoftware.pk` in `.env` on that host. Native mobile apps can omit browser CORS; the origin list is for any web client.
 
 ## Structure
 
@@ -285,7 +295,8 @@ Format the project with PhpStorm closed:
 
 - Set `APP_ENV=production` and `APP_DEBUG=false`
 - Keep a unique `JWT_SECRET` of at least 32 random bytes (also required locally)
-- Prefer Apache `DocumentRoot` of `public/` in dedicated hosting; the project-root `.htaccess` already blocks source and storage on MAMP
+- Upload the project as the subdomain document root; `/api/v1/...` is served by root `index.php`
+- Do not expose `/tests/` in production (Apache returns 403 except on localhost)
 - Use a restricted database account
 - Change or remove seeded credentials
 - Configure exact comma-separated `CORS_ORIGINS` (never `*`) and trusted proxies
