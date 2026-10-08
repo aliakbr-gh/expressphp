@@ -10,6 +10,7 @@ ExpressPHP is a zero-dependency PHP micro-framework and REST API starter kit. Ke
 - `src/` contains reusable framework code under `ExpressPHP\`.
 - Controllers handle HTTP input and responses.
 - Models own database access and domain queries.
+- PHP view templates belong in `app/Views/`; escape displayed data with the view's `$escape()` helper.
 - Middleware handles authentication and authorization.
 - Routes belong in `routes/api.php`.
 - CLI tools belong in `cli/`.

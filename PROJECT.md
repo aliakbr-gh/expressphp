@@ -8,7 +8,7 @@ This guide explains every maintained project file. Files created while the API r
 
 | Folder | What belongs here |
 |---|---|
-| `app/` | Your application's controllers, models, and access checks. These classes use the `App\` namespace. |
+| `app/` | Your application's controllers, models, access checks, and PHP views. Application classes use the `App\` namespace. |
 | `src/` | The reusable framework tools. These classes use the `ExpressPHP\` namespace. |
 | `config/` | Settings you edit for this installation. |
 | `routes/` | The API URLs and the actions they run. |
@@ -56,6 +56,7 @@ Controllers validate HTTP input, call a model or framework tool, and return a re
 | `app/Controllers/AuthController.php` | Handles registration, login, the current user, token refresh, and logout. Hashes registration passwords and invalidates older tokens when a session is refreshed or logged out. |
 | `app/Controllers/DatabaseBackupController.php` | Creates a ZIP backup of the default database and sends it as a download. Records the action and removes the temporary SQL and ZIP files after sending them. |
 | `app/Controllers/EmailController.php` | Sends email through a configured mailer and lists or shows delivery records. Records whether delivery succeeded or failed. |
+| `app/Controllers/ExampleController.php` | Handles the public `GET /api/v1/example` endpoint and renders the example view with a title and message. Accepts no query or body fields and needs no authentication. |
 | `app/Controllers/FileController.php` | Receives an uploaded `file`, sends it to the upload tool, and returns the stored file's details. Contains a commented example of custom upload restrictions. |
 | `app/Controllers/HealthController.php` | Reports that the server is running and checks database availability with a small query. Returns an unavailable response if the database check fails. |
 | `app/Controllers/PermissionController.php` | Lists, creates, edits, and deletes permissions. Also shows which roles have a permission and records changes as activities. |
@@ -90,6 +91,19 @@ Most models use a database table. `ServerLog.php` reads files instead.
 A user has one role, and a role has permissions such as `users.view`. The first registered user becomes `super-admin` when the users table is empty; later registrations receive the `user` role. Create that first account before allowing public access to a fresh installation.
 
 The user's `session_version` is a number stored in the database and included in their token. Increasing that number causes authentication to reject older tokens.
+
+## Application views
+
+| File | What it contains and does |
+|---|---|
+| `app/Views/example.php` | The HTML page used by `GET /api/v1/example`, showing the heading `Hello` and message `Rendered from your controller.` Displays the controller's title and message, with defaults, and escapes both values for HTML. |
+
+Open [http://localhost/expressphp/api/v1/example](http://localhost/expressphp/api/v1/example) to see the example page.
+It requires no authentication and accepts no query or body fields.
+
+Add page templates under `app/Views/`. A template such as `app/Views/users/index.php` is selected with the name `users/index`.
+Each supplied data key becomes a template variable, and `$data` contains the original array. Use the supplied `$escape()`
+helper when displaying values in HTML text or quoted attributes. Templates are trusted PHP files; their data is not automatically escaped.
 
 ## Terminal commands
 
@@ -151,10 +165,16 @@ The migration runner creates its tracking table when it starts, including when c
 | File | What it contains and does |
 |---|---|
 | `src/Http/Request.php` | Wraps incoming JSON, form fields, query values, headers, cookies, uploaded files, and route parameters. Provides validation helpers, trusted-proxy handling, and a place to store the authenticated user. |
-| `src/Http/Response.php` | Builds and sends responses with status codes and headers. Supports success/error JSON, text, HTML, cookies, redirects, streams, and downloads. |
+| `src/Http/Response.php` | Builds and sends responses with status codes and headers. Supports success/error JSON, text, HTML, PHP views with data, cookies, redirects, streams, and downloads. |
 | `src/Http/CORS.php` | Adds browser cross-origin response headers when the requesting origin is allowed. Uses the configured methods, headers, and credential policy. |
 | `src/Http/Pagination.php` | Wraps a result list with its total, limit, offset, returned count, and information about the next page. |
 | `src/Http/HttpException.php` | Carries an error message and HTTP status code so the application can return the appropriate response. |
+
+## Framework views
+
+| File | What it contains and does |
+|---|---|
+| `src/View/View.php` | Finds PHP templates inside the views folder and captures their rendered HTML. Supplies template variables and an HTML escape helper, rejects invalid paths and reserved variable names, and discards buffered output if rendering fails. |
 
 ## Framework routing
 
@@ -174,7 +194,7 @@ The migration runner creates its tracking table when it starts, including when c
 
 | File | What it contains and does |
 |---|---|
-| `src/Validation/Validator.php` | Checks values against rules for required fields, types, sizes, dates, and database existence or uniqueness. Rejects unknown fields and returns the validated values. |
+| `src/Validation/Validator.php` | Checks values against rules for types, bounds, formats, conditional requirements, date comparisons, and database existence or uniqueness. Supports wildcard array-item rules, rejects unknown fields in declared schemas, and returns normalized values. |
 | `src/Validation/ValidationException.php` | Holds the messages produced when validation fails. The application returns these failures as HTTP 422 responses. |
 
 ## Framework logging, mail, and uploads
@@ -221,6 +241,7 @@ For example, `GET /api/v1/users` goes through `AuthMiddleware`, then `Permission
 | Change settings | `config/app.php` |
 | Add or change an API URL | `routes/api.php` and its controller in `app/Controllers/` |
 | Add a database query | The relevant model in `app/Models/` |
+| Add an HTML page | A template in `app/Views/`, its controller, and its route |
 | Change access rules | The route's middleware list and, when needed, a class in `app/Middlewares/` |
 | Add or change a table | A new file under `migrations/` |
 | Add a terminal command | A file under `cli/` |

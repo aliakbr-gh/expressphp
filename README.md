@@ -77,7 +77,8 @@ is for any web client. Keep deployed credentials out of Git.
 app/
 ├── Controllers/
 ├── Middlewares/
-└── Models/
+├── Models/
+└── Views/
 src/
 ├── Auth/
 ├── Core/
@@ -89,6 +90,7 @@ src/
 ├── Routing/
 ├── Storage/
 ├── Validation/
+├── View/
 └── bootstrap.php
 config/
 └── app.php
@@ -156,6 +158,32 @@ return $response->success($data, 'Resource created', 201);
 return $response->error('Resource not found', 404);
 ```
 
+Render a PHP template with controller data:
+
+```php
+return $response->view('example', [
+    'title' => 'Hello',
+    'message' => 'Rendered from your controller.',
+]);
+```
+
+`ExampleController::index()` uses this response at `GET /api/v1/example`. Open
+[http://localhost/expressphp/api/v1/example](http://localhost/expressphp/api/v1/example) to see the heading `Hello` and
+the message `Rendered from your controller.` This public example requires no authentication and accepts no query or body fields.
+
+This renders `app/Views/example.php`. Use relative names such as `example` or `users/index`, optionally ending in `.php`.
+View paths must stay inside `app/Views/`. The renderer captures the HTML and returns a normal response, so status codes,
+CORS, security headers, and request logging still apply.
+
+Templates receive each data key as a variable, plus the original `$data` array and an `$escape()` helper:
+
+```php
+<h1><?= $escape($title) ?></h1>
+```
+
+Use `$escape()` for values displayed in HTML text or quoted attributes. Templates contain trusted PHP code; passing data
+does not automatically escape it. The names `data`, `escape`, PHP superglobals, and names starting with `__` are reserved.
+
 ```php
 $data = $request->validate([
     'name' => 'required|string|min:2|max:100',
@@ -170,7 +198,75 @@ $data = $request->validate([
 Use `array` for any PHP array, `object` for a JSON object, and `list` for a sequential
 JSON array. Nested object fields use dot notation, such as `profile.timezone`.
 
-Unknown fields are rejected. Validation errors return HTTP 422.
+Supported validation rules:
+
+| Purpose | Rules |
+|---|---|
+| Presence | `required`, `optional`, `sometimes`, `nullable` |
+| Conditional presence | `required_if:field,value`, `required_unless:field,value`, `required_with:field`, `required_without:field` |
+| Types | `string`, `integer`, `numeric`, `boolean`, `array`, `object`, `list` |
+| Formats | `email`, `ip`, `url`, `uuid`, `regex:pattern`, `date`, `date_format:format` |
+| Bounds and choices | `min:value`, `max:value`, `between:min,max`, `in:value,...`, `not_in:value,...` |
+| Matching and duplicates | `same:field`, `different:field`, `confirmed`, `distinct` |
+| Date comparisons | `before:field-or-date`, `before_or_equal:field-or-date`, `after:field-or-date`, `after_or_equal:field-or-date` |
+| Database checks | `unique:table,column,connection,ignoreId,idColumn`, `exists:table,column,connection` |
+
+Missing fields are omitted unless a required rule applies. Required rules, including triggered conditional rules, take
+precedence over `optional` and `sometimes`. `nullable` allows an explicit `null` when the field is not required.
+For `required_with`, a nonempty referenced field triggers the requirement; for `required_without`, a missing or empty
+referenced field triggers it. Both accept multiple field names. Boolean conditions using `true` or `false` recognize the
+same values as the `boolean` rule.
+
+`integer` rejects values outside PHP's integer range. `numeric` supports finite numbers, including scientific notation.
+Bounds compare numeric values after normalization, count array entries, and measure string length in bytes, preserving
+the 72-byte bcrypt password limit. Put the type rule before bounds, such as `integer|min:1`.
+`date` requires a real calendar date and rejects relative expressions; use `date_format:Y-m-d` for an exact API date format.
+Date comparisons accept another field or a fixed date. `same`, `different`, and `confirmed` compare the original submitted
+values strictly; declare a confirmation field in your rules when using `confirmed`.
+
+Use `*` to validate every array item:
+
+```php
+$data = $request->validate([
+    'items' => 'required|list|min:1',
+    'items.*' => 'required|object',
+    'items.*.sku' => ['required', 'string', 'regex:/^[A-Z]{2,4}-[0-9]+$/', 'distinct'],
+    'items.*.quantity' => 'required|integer|min:1',
+]);
+```
+
+Declare the parent list as required when at least one item is needed. `distinct` rejects duplicate values across a wildcard
+field's items after any preceding type normalization. Wildcard references such as `same:items.*.expected` refer to the
+corresponding item. An array or list with no child rules allows arbitrary contents; adding child rules enforces its schema
+and rejects unknown children, even when the parent also has a rule.
+
+Regex rules support pipes and commas inside their patterns. Rule arrays are useful for keeping complex definitions readable.
+Custom messages can use exact field paths or wildcard paths, such as `items.*.quantity.min`, and placeholders such as
+`:attribute`, `:index` (zero-based), and `:position` (one-based).
+
+For conditional fields and date ranges:
+
+```php
+$data = $request->validate([
+    'delivery' => 'required|in:email,pickup',
+    'email' => 'optional|required_if:delivery,email|email',
+    'start' => 'required|date_format:Y-m-d',
+    'end' => 'required|date_format:Y-m-d|after_or_equal:start',
+]);
+```
+
+The database connection parameter is optional. To exclude the current record from an update's uniqueness check, leave
+the connection parameter empty for the default connection and supply the loaded record's ID:
+
+```php
+$rules['username'] = 'required|string|unique:users,username,,' . $user['id'] . ',id';
+```
+
+Use an ID from a trusted record loaded by the controller; do not let the request choose which record to exclude.
+An omitted ID column defaults to `id`. Uploaded-file size, extension, and detected MIME checks remain in `FileUploader`.
+
+Unknown fields are rejected. Invalid request values return HTTP 422. Malformed or unsupported rule definitions are
+programming errors and fail before input validation.
 
 Collections use `limit` and `offset`:
 

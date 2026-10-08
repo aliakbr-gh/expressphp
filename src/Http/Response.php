@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ExpressPHP\Http;
 
 use Closure;
+use ExpressPHP\View\View;
 use RuntimeException;
 
 final class Response
@@ -13,6 +14,10 @@ final class Response
     private array $headers = [];
     private string $body = '';
     private ?Closure $streamCallback = null;
+
+    public function __construct(private readonly View $views = new View())
+    {
+    }
 
     public function status(int $code): self
     {
@@ -79,6 +84,14 @@ final class Response
         $this->header('Content-Type', 'text/html; charset=utf-8');
         $this->body = $html;
         return $this;
+    }
+
+    public function view(string $name, array $data = []): self
+    {
+        $html = $this->views->render($name, $data);
+        $this->streamCallback = null;
+        unset($this->headers['Content-Length'], $this->headers['Content-Disposition']);
+        return $this->html($html);
     }
 
     public function send(string $body, ?string $contentType = null): self

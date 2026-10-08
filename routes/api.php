@@ -8,6 +8,7 @@ use App\Controllers\AuthController;
 use App\Controllers\DatabaseBackupController;
 use App\Controllers\HealthController;
 use App\Controllers\EmailController;
+use App\Controllers\ExampleController;
 use App\Controllers\FileController;
 use App\Controllers\PermissionController;
 use App\Controllers\RoleController;
@@ -20,6 +21,8 @@ return static function (Application $app): void {
     $appName = (string)$app->config('name', 'App');
 
     $app->group('/api/v1', static function (Router $router) use ($appName): void {
+        $router->get('/example', [ExampleController::class, 'index']);
+
         $router->group('/health', static function (Router $router): void {
             $router->get('/server', [HealthController::class, 'server']);
             $router->get('/database', [HealthController::class, 'database']);
