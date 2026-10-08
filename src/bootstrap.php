@@ -27,6 +27,4 @@ spl_autoload_register(static function (string $class) use ($root): void {
     }
 });
 
-ExpressPHP\Core\Environment::load($root . '/.env');
-
 require_once $root . '/src/helpers.php';

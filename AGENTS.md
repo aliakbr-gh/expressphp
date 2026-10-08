@@ -13,7 +13,8 @@ ExpressPHP is a zero-dependency PHP micro-framework and REST API starter kit. Ke
 - Middleware handles authentication and authorization.
 - Routes belong in `routes/api.php`.
 - CLI tools belong in `cli/`.
-- The Fetch API test console lives in `tests/` and is served at `/tests/` on localhost only. Production hosts must return 403.
+- Configuration belongs in `config/app.php` as explicit PHP values.
+- Application database migrations belong in the root `migrations/` directory.
 - Runtime data belongs under `storage/` and must remain private.
 
 Do not move application behavior into `src/`. Do not add empty base classes or static model facades without a concrete need.
@@ -50,16 +51,17 @@ This project intentionally has no Composer dependencies. Prefer core PHP and exi
 ## Database changes
 
 - The consolidated schema is `migrations/2026_08_25_000001_init_project.php`.
-- Keep `seeders/DatabaseSeeder.php` permissions synchronized with it.
+- Keep the default roles, permissions, and grants in the consolidated migration synchronized with routes.
 - Preserve foreign-key creation and drop order.
 - Do not drop or roll back existing data without explicit approval.
-- Seeders must remain safe to run repeatedly.
+- Default roles and permissions must remain safe to insert repeatedly.
 
 ## Security
 
 - Treat authentication, uploads, email, logs, and rate limiting as security-sensitive.
-- Keep `.env`, `storage/`, logs, uploads, and limiter state inaccessible through Apache.
-- Require a unique `JWT_SECRET` of at least 32 bytes in every environment.
+- Keep `config/`, `storage/`, logs, uploads, and limiter state inaccessible through Apache.
+- Require a unique `jwt.secret` generated from at least 32 random bytes in every environment.
+- Keep deployed credentials and secrets out of Git.
 - Redact secrets in logs.
 - Validate uploaded file extension and detected MIME type.
 - Generate stored filenames and reject client paths.
@@ -76,23 +78,14 @@ php -l path/to/file.php
 Lint all project PHP:
 
 ```bash
-find app cli src config migrations public routes seeders -name '*.php' -print0 | xargs -0 -n1 php -l
-```
-
-The API test console is at `/tests/` on local MAMP only (not production).
-
-PhpStorm must be closed before formatting:
-
-```bash
-./cli/format
-./cli/format --check
+find app cli src config migrations public routes -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
 ## Working practices
 
 - Preserve unrelated user changes.
 - Inspect existing patterns before editing.
-- Update routes, permissions, migration, seeder, environment example, tests, and README together when applicable.
+- Update routes, permissions, migrations, configuration, and README together when applicable.
 - Keep documentation concise and accurate.
 - Never commit runtime files from `storage/`.
 - Avoid destructive Git and database commands.

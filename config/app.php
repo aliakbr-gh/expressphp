@@ -2,70 +2,37 @@
 
 declare(strict_types=1);
 
-$environment = getenv('APP_ENV') ?: 'development';
-$debugEnvironment = getenv('APP_DEBUG');
-$debugEnabled = $debugEnvironment !== false
-    && filter_var($debugEnvironment, FILTER_VALIDATE_BOOL);
-$JWTSecret = trim((string)(getenv('JWT_SECRET') ?: ''));
-$knownJWTSecrets = [
-    'expressphp-development-secret-change-this-before-production-2026',
-    'change-this-to-a-random-secret-with-at-least-32-bytes',
-];
-$CORSOrigins = array_values(array_filter(array_map(
-    'trim',
-    explode(',', (string)(getenv('CORS_ORIGINS') ?: 'http://localhost')),
-)));
-
-$required = ['JWT_SECRET', 'DB_HOST', 'DB_DATABASE', 'DB_USERNAME'];
-if ($environment === 'production') {
-    $required[] = 'DB_PASSWORD';
-}
-$missing = array_values(array_filter(
-    $required,
-    static fn(string $name): bool => getenv($name) === false || trim((string)getenv($name)) === '',
-));
-if ($missing !== []) {
-    throw new RuntimeException('Missing required configuration: ' . implode(', ', $missing));
-}
-if ($environment === 'production' && $debugEnabled) {
-    throw new RuntimeException('APP_DEBUG must be false in production.');
-}
-if (strlen($JWTSecret) < 32 || in_array($JWTSecret, $knownJWTSecrets, true)) {
-    throw new RuntimeException('JWT_SECRET must contain at least 32 random bytes in every environment. Set it in .env.');
-}
-if ($CORSOrigins === [] || in_array('*', $CORSOrigins, true)) {
-    throw new RuntimeException('CORS_ORIGINS must list explicit origins in every environment.');
-}
-
-return [
+$config = [
+    // Application identity, timezone, and environment.
     'name' => 'ExpressPHP',
-    'timezone' => getenv('APP_TIMEZONE') ?: 'Asia/Karachi',
-    'env' => $environment,
-    'debug' => $debugEnabled,
+    'timezone' => 'Asia/Karachi',
+    'env' => 'development',
+    'debug' => true,
     'base_path' => '',
 
+    // Developer dumps; enabled follows the debug switch.
     'debug_dump' => [
-        'enabled' => $debugEnabled,
         'status' => 500,
         'max_depth' => 6,
         'show_headers' => true,
     ],
 
+    // Daily request logs stored privately.
     'logging' => [
         'enabled' => true,
         'path' => dirname(__DIR__) . '/storage/logs',
-        // Request bodies larger than this are not copied into the log.
         'max_input_bytes' => 4096,
     ],
 
+    // Per-IP request limits and temporary blocks.
     'rate_limiter' => [
-        'enabled' => filter_var(getenv('RATE_LIMIT_ENABLED') ?: true, FILTER_VALIDATE_BOOL),
-        'max_requests' => max(1, (int)(getenv('RATE_LIMIT_MAX_REQUESTS') ?: 120)),
-        'window_seconds' => max(1, (int)(getenv('RATE_LIMIT_WINDOW_SECONDS') ?: 60)),
-        'pause_minutes' => max(1, (int)(getenv('RATE_LIMIT_PAUSE_MINUTES') ?: 5)),
-        'max_violations' => max(1, (int)(getenv('RATE_LIMIT_MAX_VIOLATIONS') ?: 5)),
-        'block_minutes' => max(1, (int)(getenv('RATE_LIMIT_BLOCK_MINUTES') ?: 30)),
-        'violation_decay_minutes' => max(1, (int)(getenv('RATE_LIMIT_VIOLATION_DECAY_MINUTES') ?: 60)),
+        'enabled' => true,
+        'max_requests' => 120,
+        'window_seconds' => 60,
+        'pause_minutes' => 5,
+        'max_violations' => 5,
+        'block_minutes' => 30,
+        'violation_decay_minutes' => 60,
         'path' => dirname(__DIR__) . '/storage/rate-limiter',
         'except' => [
             '/api/v1/health/server',
@@ -76,53 +43,68 @@ return [
         ],
     ],
 
+    // Temporary files for downloadable database backups.
     'backups' => [
         'path' => dirname(__DIR__) . '/storage/backups',
     ],
 
+    // Authentication tokens; use a unique secret of at least 32 random bytes.
     'jwt' => [
-        // Always set JWT_SECRET to a long random value in production.
-        'secret' => $JWTSecret,
-        'issuer' => getenv('JWT_ISSUER') ?: 'expressphp',
-        'audience' => getenv('JWT_AUDIENCE') ?: 'expressphp-api',
-        'ttl' => (int)(getenv('JWT_TTL') ?: 86400),
-        'leeway' => (int)(getenv('JWT_LEEWAY') ?: 5),
+        'secret' => '6dfa86541dd7fb8558426c9a0d4583337ac251dc3ec1f4bf3c8963ef4dc4a90c',
+        'issuer' => 'expressphp',
+        'audience' => 'expressphp-api',
+        'ttl' => 86400,
+        'leeway' => 5,
     ],
 
+    // Bcrypt password hashing.
     'password' => [
-        'bcrypt_cost' => (int)(getenv('PASSWORD_BCRYPT_COST') ?: 12),
+        'bcrypt_cost' => 12,
     ],
 
+    // Outgoing email through named SMTP profiles.
     'mail' => [
-        'enabled' => filter_var(getenv('MAIL_ENABLED') ?: false, FILTER_VALIDATE_BOOL),
-        'default' => getenv('MAIL_MAILER') ?: 'smtp',
-        'from_address' => getenv('MAIL_FROM_ADDRESS') ?: '',
-        'from_name' => getenv('MAIL_FROM_NAME') ?: 'ExpressPHP',
-        'timeout' => (int)(getenv('MAIL_TIMEOUT') ?: 10),
+        'enabled' => false,
+        'default' => 'smtp',
+        'from_address' => 'no-reply@example.com',
+        'from_name' => 'ExpressPHP',
+        'timeout' => 10,
         'mailers' => [
             'smtp' => [
-                'host' => getenv('SMTP_HOST') ?: '',
-                'port' => (int)(getenv('SMTP_PORT') ?: 587),
-                'encryption' => getenv('SMTP_ENCRYPTION') ?: 'tls',
-                'username' => getenv('SMTP_USERNAME') ?: '',
-                'password' => getenv('SMTP_PASSWORD') ?: '',
+                'host' => 'smtp.example.com',
+                'port' => 587,
+                'encryption' => 'tls',
+                'username' => '',
+                'password' => '',
             ],
             'gmail' => [
                 'host' => 'smtp.gmail.com',
                 'port' => 587,
                 'encryption' => 'tls',
-                'username' => getenv('GMAIL_USERNAME') ?: '',
-                'password' => getenv('GMAIL_APP_PASSWORD') ?: '',
+                'username' => 'your-account@gmail.com',
+                'password' => '',
             ],
         ],
     ],
 
+    // Private uploads checked by size, extension, and detected MIME type.
     'uploads' => [
         'path' => dirname(__DIR__) . '/storage/uploads',
-        'max_size' => (int)(getenv('UPLOAD_MAX_SIZE') ?: 10 * 1024 * 1024),
+        'max_size' => 10485760,
         'allowed_extensions' => [
-            'jpg', 'jpeg', 'png', 'gif', 'webp',
-            'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'zip',
+            'jpg',
+            'jpeg',
+            'png',
+            'gif',
+            'webp',
+            'pdf',
+            'txt',
+            'csv',
+            'doc',
+            'docx',
+            'xls',
+            'xlsx',
+            'zip',
         ],
         'mime_types_by_extension' => [
             'jpg' => ['image/jpeg'],
@@ -147,44 +129,48 @@ return [
         ],
     ],
 
+    // Named PDO connections; mysql is the default.
     'databases' => [
-        'default' => getenv('DB_CONNECTION') ?: 'mysql',
+        'default' => 'mysql',
         'connections' => [
             'mysql' => [
                 'driver' => 'mysql',
-                'host' => getenv('DB_HOST') ?: '127.0.0.1',
-                'port' => (int)(getenv('DB_PORT') ?: 3305),
-                'database' => getenv('DB_DATABASE') ?: 'expressphp_db',
-                'username' => getenv('DB_USERNAME') ?: 'root',
-                'password' => getenv('DB_PASSWORD') ?: 'root',
+                'host' => 'localhost',
+                'port' => 3306,
+                'database' => 'expressphp_db',
+                'username' => 'root',
+                'password' => '',
                 'charset' => 'utf8mb4',
             ],
-            // Add named connections here, then call Database::connection('reporting').
+
+            // Uncomment this profile and set its credentials to enable a second database.
+            // Select it with ExpressPHP\Database\Database::connection('reporting').
             // 'reporting' => [
             //     'driver' => 'mysql',
-            //     'host' => getenv('REPORTING_DB_HOST') ?: '127.0.0.1',
-            //     'port' => (int) (getenv('REPORTING_DB_PORT') ?: 3306),
-            //     'database' => getenv('REPORTING_DB_DATABASE') ?: 'reporting',
-            //     'username' => getenv('REPORTING_DB_USERNAME') ?: 'root',
-            //     'password' => getenv('REPORTING_DB_PASSWORD') ?: '',
+            //     'host' => '127.0.0.1',
+            //     'port' => 3306,
+            //     'database' => 'reporting_db',
+            //     'username' => 'reporting_user',
+            //     'password' => '',
             //     'charset' => 'utf8mb4',
             // ],
         ],
     ],
 
-    // Only trust forwarding headers when REMOTE_ADDR is in this list.
+    // Proxy IPs allowed to supply trusted forwarding headers.
     'trusted_proxies' => [],
 
-    // Middleware aliases used in routes, for example: ['auth', 'permission:users.view'].
+    // Middleware aliases used by routes.
     'middleware' => [
         'auth' => App\Middlewares\AuthMiddleware::class,
         'role' => App\Middlewares\RoleMiddleware::class,
         'permission' => App\Middlewares\PermissionMiddleware::class,
     ],
 
+    // Browser access from explicitly allowed origins.
     'cors' => [
         'enabled' => true,
-        'origins' => $CORSOrigins,
+        'origins' => ['http://localhost'],
         'methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         'headers' => ['Accept', 'Authorization', 'Content-Type', 'Origin', 'X-Requested-With'],
         'expose_headers' => [
@@ -198,3 +184,40 @@ return [
         'max_age' => 86400,
     ],
 ];
+
+// Debug output follows the single debug switch above.
+$config['debug_dump']['enabled'] = $config['debug'];
+
+if ($config['env'] === 'production' && $config['debug']) {
+    throw new RuntimeException('config/app.php: debug must be false in production.');
+}
+
+$secret = trim($config['jwt']['secret']);
+if (strlen($secret) < 32 || in_array($secret, [
+    'expressphp-development-secret-change-this-before-production-2026',
+    'change-this-to-a-random-secret-with-at-least-32-bytes',
+], true)) {
+    throw new RuntimeException('config/app.php: jwt.secret must contain at least 32 random bytes in every environment.');
+}
+$config['jwt']['secret'] = $secret;
+
+$origins = $config['cors']['origins'];
+if ($origins === [] || array_filter($origins, static fn(string $origin): bool => in_array(trim($origin), ['', '*'], true)) !== []) {
+    throw new RuntimeException('config/app.php: cors.origins must list explicit origins in every environment.');
+}
+
+$connection = $config['databases']['connections'][$config['databases']['default']] ?? null;
+if (!is_array($connection)) {
+    throw new RuntimeException('config/app.php: the default database connection must be configured.');
+}
+$required = ['host', 'database', 'username'];
+if ($config['env'] === 'production') {
+    $required[] = 'password';
+}
+foreach ($required as $key) {
+    if (trim((string)($connection[$key] ?? '')) === '') {
+        throw new RuntimeException('config/app.php: the default database requires ' . $key . '.');
+    }
+}
+
+return $config;

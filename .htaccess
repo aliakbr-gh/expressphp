@@ -2,7 +2,7 @@ Options -Indexes
 RewriteEngine On
 DirectoryIndex index.php index.html
 
-# Deny hidden files such as .env and .git regardless of whether they exist.
+# Deny hidden files regardless of whether they exist.
 <FilesMatch "^\.">
     Require all denied
 </FilesMatch>
@@ -14,12 +14,7 @@ RewriteRule ^ - [E=HTTP_AUTHORIZATION:%1]
 # Source, storage, CLI, and metadata must never be fetched as files.
 # Works when the project folder is the subdomain document root
 # (for example public_html for digi.example.com).
-RewriteRule ^(?:\.git|public|cli|AGENTS\.md|LICENSE|README\.md|app|config|migrations|routes|seeders|src|storage)(?:/|$) - [F,L,NC]
-
-# Mini API test console: localhost only, never production.
-RewriteCond %{HTTP_HOST} ^(localhost|127\.0\.0\.1)(:[0-9]+)?$ [NC]
-RewriteRule ^tests(?:/|$) - [L]
-RewriteRule ^tests(?:/|$) - [F,L]
+RewriteRule ^(?:\.git|public|cli|AGENTS\.md|LICENSE|README\.md|PROJECT\.md|app|config|migrations|routes|src|storage)(?:/|$) - [F,L,NC]
 
 # Every other URL, including /api/v1/..., enters the front controller.
 RewriteRule ^index\.php$ - [L]

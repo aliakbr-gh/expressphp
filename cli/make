@@ -13,9 +13,8 @@ $root = dirname(__DIR__);
 
 require $root . '/src/bootstrap.php';
 
-$config = require $root . '/config/app.php';
-
 try {
+    $config = require $root . '/config/app.php';
     exit((new MakeCommand($root, (string)($config['timezone'] ?? 'UTC')))->run(array_slice($argv, 1)));
 } catch (Throwable $exception) {
     fwrite(STDERR, 'Make failed: ' . $exception->getMessage() . PHP_EOL);

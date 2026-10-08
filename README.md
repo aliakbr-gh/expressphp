@@ -5,20 +5,21 @@ MySQL.
 
 It uses core PHP and PDO. There is no Composer or `vendor/` directory.
 
+See [PROJECT.md](PROJECT.md) for a simple guide to every file and how requests move through the project.
+
 ## Features
 
 - Versioned routing and middleware
 - JWT authentication and token invalidation
 - Roles and permissions
 - Validation and pagination
-- PDO models, migrations, and seeders
+- PDO models and migrations
 - Rate limiting and permanent IP blocking
 - Activity logs and daily request logs
 - Server and database health checks
 - SMTP and Gmail email
 - Secure file uploads
 - CORS and trusted proxies
-- HTML Fetch API test console at `/tests/` (localhost only)
 
 ## Requirements
 
@@ -29,39 +30,34 @@ It uses core PHP and PDO. There is no Composer or `vendor/` directory.
 
 ## Installation
 
-```bash
-cp .env.example .env
-```
+Create a database and edit the values directly in `config/app.php`:
 
-Create a database, copy `.env.example` to `.env`, set `DB_*`, and generate `JWT_SECRET` (required locally and in production):
+- Set `databases.connections.mysql` to your database host, database name, username, and password.
+- Set `timezone`, `env`, and `debug` for the environment.
+- Set `jwt.secret` to a unique random secret generated once for this environment:
 
 ```bash
 php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'
 ```
 
+Paste the result into `jwt.secret`; keep it stable between requests and use a separate secret for each environment.
+
 Then run:
 
 ```bash
 php cli/migrate.php migrate
-php cli/seed.php
 ```
 
-The development seeder creates:
-
-```text
-Username: akbar
-Password: akbar123
-Role: admin
-```
-
-Change this password outside local development.
+The migration creates the standard roles and permissions. There is no default username or password.
+Register your first account through `POST /api/v1/auth/register` before making a fresh installation public. The first
+registered user becomes `super-admin`; later users receive the `user` role. Registration requires `name`, `username`, and
+`password` (at least 8 characters). Existing accounts keep their roles.
 
 With MAMP and this project under `htdocs/expressphp`:
 
 ```text
 http://localhost/expressphp/api/v1/health/server
 http://localhost/expressphp/api/v1/auth/login
-http://localhost/expressphp/tests/
 ```
 
 Upload the whole project as the subdomain document root (for example `public_html` for `digi.100xsoftware.pk`). Then this works with no extra Apache DocumentRoot change:
@@ -71,7 +67,9 @@ https://digi.100xsoftware.pk/api/v1/health/server
 https://digi.100xsoftware.pk/api/v1/auth/login
 ```
 
-`/tests/` is a local API console only (`http://localhost/expressphp/tests/`). Production hosts forbid it. Set `APP_ENV=production`, `APP_DEBUG=false`, a unique `JWT_SECRET`, and `CORS_ORIGINS=https://digi.100xsoftware.pk` in `.env` on that host. Native mobile apps can omit browser CORS; the origin list is for any web client.
+On the production host, set `'env' => 'production'`, `'debug' => false`, a unique `jwt.secret`, and
+`'origins' => ['https://digi.100xsoftware.pk']` in the `cors` array. Native mobile apps can omit browser CORS; the origin list
+is for any web client. Keep deployed credentials out of Git.
 
 ## Structure
 
@@ -93,16 +91,18 @@ src/
 ├── Validation/
 └── bootstrap.php
 config/
+└── app.php
 cli/
 public/
 migrations/
 routes/
-seeders/
 storage/
-tests/
 ```
 
 Application classes use the `App\` namespace. Reusable framework classes use `ExpressPHP\`.
+
+Keep `migrations/` at the project root. It describes application database changes, alongside `app/`, `routes/`, and `config/`.
+The reusable migration runner belongs in `src/Database/Migrations/`.
 
 ## Creating an API
 
@@ -180,8 +180,8 @@ GET /api/v1/users?limit=20&offset=0
 
 ## Authentication and RBAC
 
-Access tokens last `JWT_TTL` seconds (default 86400). The IP limiter defaults to 120 requests per 60 seconds. Tune
-`RATE_LIMIT_*` in `.env` for a chatty mobile client.
+Access tokens last `jwt.ttl` seconds (default 86400). The IP limiter defaults to 120 requests per 60 seconds. Tune the
+`rate_limiter` array in `config/app.php` for a chatty mobile client.
 
 ```text
 POST /api/v1/auth/register
@@ -236,15 +236,25 @@ under private `storage/backups/` and are deleted after the response. The permiss
 
 ## Email
 
-Configure generic SMTP or Gmail in `.env`:
+Configure generic SMTP or Gmail in the `mail` array in `config/app.php`. For Gmail:
 
-```dotenv
-MAIL_ENABLED=true
-MAIL_MAILER=gmail
-MAIL_FROM_ADDRESS=your-account@gmail.com
-MAIL_FROM_NAME=ExpressPHP
-GMAIL_USERNAME=your-account@gmail.com
-GMAIL_APP_PASSWORD=your-app-password
+```php
+'mail' => [
+    'enabled' => true,
+    'default' => 'gmail',
+    'from_address' => 'your-account@gmail.com',
+    'from_name' => 'ExpressPHP',
+    'timeout' => 10,
+    'mailers' => [
+        'gmail' => [
+            'host' => 'smtp.gmail.com',
+            'port' => 587,
+            'encryption' => 'tls',
+            'username' => 'your-account@gmail.com',
+            'password' => '', // Your Gmail app password.
+        ],
+    ],
+],
 ```
 
 ```text
@@ -276,7 +286,6 @@ Global restrictions live in `config/app.php`. Files are stored under the private
 php cli/migrate.php status
 php cli/migrate.php migrate
 php cli/migrate.php rollback
-php cli/seed.php
 
 php cli/rate-limit status 192.0.2.10
 php cli/rate-limit block 192.0.2.10
@@ -284,24 +293,16 @@ php cli/rate-limit clear 192.0.2.10
 php cli/rate-limit blocked
 ```
 
-Format the project with PhpStorm closed:
-
-```bash
-./cli/format
-./cli/format --check
-```
-
 ## Production checklist
 
-- Set `APP_ENV=production` and `APP_DEBUG=false`
-- Keep a unique `JWT_SECRET` of at least 32 random bytes (also required locally)
+- Set `env` to `'production'` and `debug` to `false`; debug dumps follow this switch
+- Keep a unique `jwt.secret` generated from at least 32 random bytes (also required locally)
 - Upload the project as the subdomain document root; `/api/v1/...` is served by root `index.php`
-- Do not expose `/tests/` in production (Apache returns 403 except on localhost)
 - Use a restricted database account
-- Change or remove seeded credentials
-- Configure exact comma-separated `CORS_ORIGINS` (never `*`) and trusted proxies
+- Configure exact origins in `cors.origins` (never `*`) and trusted proxies
 - Enable HTTPS
-- Keep `.env` and `storage/` private
+- Keep `config/`, `storage/`, and deployed secrets private and out of public downloads
+- Restrict `config/app.php` permissions to the owner and the PHP service account
 - Restrict `database-backups.download` to trusted administrators
 - Configure PHP request and upload limits
 - Configure SMTP sender authentication

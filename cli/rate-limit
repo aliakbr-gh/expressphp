@@ -13,12 +13,13 @@ $root = dirname(__DIR__);
 
 require $root . '/src/bootstrap.php';
 
-$config = require $root . '/config/app.php';
-$limiter = new RateLimiter($config['rate_limiter'] ?? []);
 $command = $argv[1] ?? null;
 $ip = $argv[2] ?? null;
 
 try {
+    $config = require $root . '/config/app.php';
+    $limiter = new RateLimiter($config['rate_limiter'] ?? []);
+
     $result = match ($command) {
         'status' => $ip !== null ? $limiter->status($ip) : throw new RuntimeException('An IP address is required.'),
         'block' => $ip !== null ? $limiter->block($ip) : throw new RuntimeException('An IP address is required.'),

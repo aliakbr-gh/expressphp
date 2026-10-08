@@ -14,14 +14,14 @@ $root = dirname(__DIR__);
 
 require $root . '/src/bootstrap.php';
 
-$config = require $root . '/config/app.php';
-Database::configure($config['databases'] ?? []);
-
 $command = $argv[1] ?? 'status';
 $connection = $argv[2] ?? null;
-$migrator = new Migrator($root . '/migrations', $connection);
 
 try {
+    $config = require $root . '/config/app.php';
+    Database::configure($config['databases'] ?? []);
+    $migrator = new Migrator($root . '/migrations', $connection);
+
     if ($command === 'status') {
         foreach ($migrator->status() as $migration) {
             echo str_pad($migration['status'], 10) . $migration['name'] . PHP_EOL;
