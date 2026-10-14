@@ -1,0 +1,46 @@
+# Runtime files written by the app (keep the folders via their .gitkeep)
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+!/storage/uploads/.htaccess
+/storage/ratelimit/*
+!/storage/ratelimit/.gitkeep
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Linux
+*~
+.directory
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.fleet/
+*.swp
+*.swo
+
+# Dependencies (if Composer or npm are ever added)
+/vendor/
+/node_modules/
+
+# Local secrets and environment overrides
+.env
+.env.*
+
+# Misc
+*.log
+*.bak
+*.tmp
+.phpunit.result.cache

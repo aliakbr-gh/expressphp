@@ -1,0 +1,12 @@
+# Used when the domain's document root points directly at /public (most secure setup).
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Pass the Authorization header through to PHP; some Apache setups drop it (needed for Bearer tokens).
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Serve real files directly; send every other URL to index.php (the front controller).
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

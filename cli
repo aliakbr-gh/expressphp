@@ -1,0 +1,218 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Command-line tool.
+ *
+ *   php cli migrate                      Run pending migrations
+ *   php cli migrate:status               Show which migrations have run
+ *   php cli migrate:rollback             Undo the last batch   (--step=N for N batches)
+ *   php cli migrate:refresh              Undo everything, then migrate again
+ *   php cli migrate:fresh                Drop ALL tables, then migrate (destroys data)
+ *   php cli make:migration <name>        Create a migration, e.g. create_posts_table
+ *   php cli make:controller <Name>       Create app/Controllers/<Name>.php   (Admin/UserController for a subfolder)
+ *   php cli make:model <Name>            Create app/Models/<Name>.php
+ *   php cli make:middleware <Name>       Create app/Middlewares/<Name>.php
+ *
+ * In production (app.env = production) commands that change the schema need --force.
+ */
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
+require __DIR__ . '/core/bootstrap.php';
+
+use Core\Config;
+use Core\Migrator;
+
+$args    = array_slice($argv, 1);
+$command = $args[0] ?? 'help';
+$options = [];
+$params  = [];
+foreach (array_slice($args, 1) as $arg) {
+    if (preg_match('/^--([\w-]+)(?:=(.*))?$/', $arg, $m)) {
+        $options[$m[1]] = $m[2] ?? true;
+    } else {
+        $params[] = $arg;
+    }
+}
+
+$green  = fn(string $s) => "\033[32m{$s}\033[0m";
+$red    = fn(string $s) => "\033[31m{$s}\033[0m";
+$yellow = fn(string $s) => "\033[33m{$s}\033[0m";
+
+$migrator = new Migrator(BASE_PATH . '/database/migrations');
+
+/**
+ * Creates app/<folder>/<Name>.php from a template. "Admin/UserController" creates a subfolder
+ * and namespace. Never overwrites an existing file. Returns the created path.
+ */
+$makeClass = function (string $folder, string $name, callable $template): string {
+    $name = trim(str_replace('\\', '/', $name), '/');
+    if (!preg_match('#^([A-Z][A-Za-z0-9]*/)*[A-Z][A-Za-z0-9]*$#', $name)) {
+        throw new RuntimeException('Name must be StudlyCase, e.g. UserController or Admin/UserController.');
+    }
+
+    $parts     = explode('/', $name);
+    $class     = array_pop($parts);
+    $namespace = implode('\\', ['App', $folder, ...$parts]);
+    $file      = BASE_PATH . "/app/{$folder}/{$name}.php";
+
+    if (is_file($file)) {
+        throw new RuntimeException('Already exists: ' . substr($file, strlen(BASE_PATH) + 1));
+    }
+    if (!is_dir(dirname($file))) {
+        mkdir(dirname($file), 0775, true);
+    }
+
+    file_put_contents($file, $template($namespace, $class));
+    return $file;
+};
+
+// Templates follow the app/ style: no comments; models run raw SQL through Core\Database.
+$templates = [
+    'controller' => ['Controllers', fn(string $ns, string $class) => <<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace {$ns};
+
+        use Core\Request;
+        use Core\Response;
+
+        final class {$class}
+        {
+            public function index(Request \$request, Response \$response): Response
+            {
+                return \$response->success(null, 'OK');
+            }
+        }
+
+        PHP],
+    'model' => ['Models', fn(string $ns, string $class) => <<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace {$ns};
+
+        use Core\Database;
+
+        final class {$class}
+        {
+            public static function findById(int \$id): ?array
+            {
+                return Database::fetch('SELECT * FROM table_name WHERE id = ? LIMIT 1', [\$id]);
+            }
+        }
+
+        PHP],
+    'middleware' => ['Middlewares', fn(string $ns, string $class) => <<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace {$ns};
+
+        use Core\MiddlewareInterface;
+        use Core\Request;
+        use Core\Response;
+
+        final class {$class} implements MiddlewareInterface
+        {
+            public function handle(Request \$request, callable \$next): Response
+            {
+                return \$next(\$request);
+            }
+        }
+
+        PHP],
+];
+
+$guard = function () use ($options, $red): void {
+    if (Config::get('app.env') === 'production' && !isset($options['force'])) {
+        fwrite(STDERR, $red('Application is in production. Re-run with --force to continue.') . PHP_EOL);
+        exit(1);
+    }
+};
+
+try {
+    switch ($command) {
+        case 'migrate':
+            $guard();
+            $migrator->migrate();
+            break;
+
+        case 'migrate:rollback':
+            $guard();
+            $migrator->rollback((int) ($options['step'] ?? 1));
+            break;
+
+        case 'migrate:refresh':
+            $guard();
+            $migrator->refresh();
+            break;
+
+        case 'migrate:fresh':
+            $guard();
+            $migrator->fresh();
+            break;
+
+        case 'migrate:status':
+            $rows = $migrator->status();
+            if ($rows === []) {
+                echo "No migrations found.\n";
+                break;
+            }
+            $width = max(array_map(fn($r) => strlen($r['migration']), $rows));
+            foreach ($rows as $r) {
+                printf(
+                    "%s  %-{$width}s  %s\n",
+                    $r['ran'] ? $green('Ran    ') : $yellow('Pending'),
+                    $r['migration'],
+                    $r['batch'] !== null ? "batch {$r['batch']}" : ''
+                );
+            }
+            break;
+
+        case 'make:migration':
+            $file = $migrator->make($params[0] ?? '');
+            echo $green('Created ') . substr($file, strlen(BASE_PATH) + 1) . PHP_EOL;
+            break;
+
+        case 'make:controller':
+        case 'make:model':
+        case 'make:middleware':
+            [$folder, $template] = $templates[substr($command, 5)];
+            $file = $makeClass($folder, $params[0] ?? '', $template);
+            echo $green('Created ') . substr($file, strlen(BASE_PATH) + 1) . PHP_EOL;
+            break;
+
+        default:
+            echo <<<TXT
+            Usage: php cli <command>
+
+              migrate                    Run pending migrations
+              migrate:status             Show which migrations have run
+              migrate:rollback [--step=N] Undo the last batch (or N batches)
+              migrate:refresh            Undo everything, then migrate again
+              migrate:fresh              Drop ALL tables, then migrate (destroys data)
+              make:migration <name>      Create a migration, e.g. create_posts_table
+              make:controller <Name>     Create app/Controllers/<Name>.php
+              make:model <Name>          Create app/Models/<Name>.php
+              make:middleware <Name>     Create app/Middlewares/<Name>.php
+
+            Add --force to run schema commands when app.env is production.
+
+            TXT;
+            exit($command === 'help' ? 0 : 1);
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, $red('Error: ' . $e->getMessage()) . PHP_EOL);
+    exit(1);
+}

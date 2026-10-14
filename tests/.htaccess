@@ -1,0 +1,2 @@
+# Block all web access: tests run from the command line only (php tests/tests.php).
+Require all denied

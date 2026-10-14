@@ -1,0 +1,22 @@
+# Defence in depth for uploaded files. storage/.htaccess already blocks all web access;
+# these rules still protect this folder if that parent rule is ever loosened or removed.
+
+# Never serve anything from here directly.
+Require all denied
+
+# Never execute scripts from here, whatever their name (mod_php only; ignored elsewhere).
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+
+# Don't hand script-like files to any handler (PHP-FPM, CGI, server-side includes).
+<IfModule mod_mime.c>
+    RemoveHandler .php .phtml .phar .php3 .php4 .php5 .php7 .php8 .pht .phps .shtml .cgi .pl .py
+    RemoveType .php .phtml .phar .php3 .php4 .php5 .php7 .php8 .pht .phps .shtml .cgi .pl .py
+</IfModule>
+<FilesMatch "\.(php\d?|phtml|phar|pht|phps|shtml|cgi|pl|py|html?|svg|js)$">
+    Require all denied
+</FilesMatch>
