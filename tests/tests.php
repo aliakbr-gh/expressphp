@@ -205,6 +205,17 @@ test('Request properties', function () {
     assertTrue(isset($r->email) && !isset($r->nope), 'isset');
 });
 
+test('Authorization header recovered from REDIRECT_ env vars (Apache CGI/FastCGI)', function () {
+    $saved = $_SERVER;
+    try {
+        unset($_SERVER['HTTP_AUTHORIZATION'], $_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+        $_SERVER['REDIRECT_REDIRECT_HTTP_AUTHORIZATION'] = 'Bearer abc.def.ghi';
+        assertTrue(Request::fromGlobals()->bearerToken() === 'abc.def.ghi', 'double redirect');
+    } finally {
+        $_SERVER = $saved;
+    }
+});
+
 test('Request properties are read-only', function () {
     try {
         sampleRequest()->body = [];

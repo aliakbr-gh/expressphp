@@ -220,9 +220,16 @@ final class Request
             }
         }
 
-        // Some Apache setups only expose the Authorization header via REDIRECT_.
-        if (!isset($headers['authorization']) && isset($server['REDIRECT_HTTP_AUTHORIZATION'])) {
-            $headers['authorization'] = $server['REDIRECT_HTTP_AUTHORIZATION'];
+        // Apache running PHP as CGI/FastCGI (e.g. MAMP) drops the Authorization header; the .htaccess
+        // files copy it into an environment variable instead, and Apache adds one REDIRECT_ prefix per
+        // internal rewrite (root .htaccess, then public/.htaccess => REDIRECT_REDIRECT_HTTP_AUTHORIZATION).
+        if (!isset($headers['authorization'])) {
+            foreach ($server as $key => $value) {
+                if (is_string($key) && preg_match('/^(REDIRECT_)+HTTP_AUTHORIZATION$/', $key) === 1 && $value !== '') {
+                    $headers['authorization'] = $value;
+                    break;
+                }
+            }
         }
 
         return $headers;
