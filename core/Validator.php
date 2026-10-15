@@ -215,7 +215,7 @@ final class Validator
             'file'       => $value instanceof UploadedFile && $value->isValid(),
             'image'      => $value instanceof UploadedFile && $value->isValid()
                             && in_array($value->mimeType(), ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'], true),
-            'mimes'      => $value instanceof UploadedFile && in_array($value->extension(), $p, true),
+            'mimes'      => $value instanceof UploadedFile && in_array($value->extension(), self::extensionAliases($p), true),
             default      => throw new InvalidArgumentException("Unknown validation rule [{$rule}]."),
         };
     }
@@ -255,6 +255,20 @@ final class Validator
     }
 
     // ------------------------------------------------------------------ Helpers
+
+    /**
+     * Rule extensions as UploadedFile::extension() names them: mimes:jpeg,PNG => ['jpg', 'png'].
+     * Stored files use one name per type, so the common alternative spellings map onto it.
+     */
+    private static function extensionAliases(array $extensions): array
+    {
+        $aliases = ['jpeg' => 'jpg', 'jpe' => 'jpg', 'jfif' => 'jpg', 'mpga' => 'mp3', 'm4v' => 'mp4'];
+
+        return array_map(static function (string $ext) use ($aliases): string {
+            $ext = strtolower(trim($ext, " .\t"));
+            return $aliases[$ext] ?? $ext;
+        }, $extensions);
+    }
 
     /** Splits 'between:1,10' into ['between', ['1', '10']]. */
     private function parseRule(string $rule): array

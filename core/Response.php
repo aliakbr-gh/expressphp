@@ -166,7 +166,7 @@ final class Response
         return $this;
     }
 
-    /** $minutes = 0 makes a session cookie. $secure = null => secure when the request is HTTPS. */
+    /** $minutes = 0 makes a session cookie. $secure = null => secure when the request is HTTPS (also behind a trusted proxy). */
     public function cookie(
         string $name,
         string $value,
@@ -181,7 +181,8 @@ final class Response
             'expires'  => $minutes === 0 ? 0 : time() + $minutes * 60,
             'path'     => $path,
             'domain'   => $domain,
-            'secure'   => $secure ?? (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off'),
+            // Same rule as Request::isSecure(): also HTTPS behind a trusted proxy (X-Forwarded-Proto).
+            'secure'   => $secure ?? Request::fromGlobals()->isSecure(),
             'httponly' => $httpOnly,
             'samesite' => $sameSite,
         ]];

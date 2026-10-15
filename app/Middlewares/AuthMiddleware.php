@@ -26,11 +26,12 @@ final class AuthMiddleware implements MiddlewareInterface
             return $this->unauthorized($e->getMessage());
         }
 
-        $user = is_int($claims['sub'] ?? null) ? User::findById($claims['sub']) : null;
-        if ($user === null) {
+        $user = is_int($claims['sub'] ?? null) ? User::findByIdWithTokenVersion($claims['sub']) : null;
+        if ($user === null || !is_int($claims['ver'] ?? null) || $claims['ver'] !== (int) $user['token_version']) {
             return $this->unauthorized('Invalid or expired token');
         }
 
+        unset($user['token_version']);
         $request->setUser($user);
 
         return $next($request);

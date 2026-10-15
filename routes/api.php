@@ -19,6 +19,7 @@ $router->group('api/v1', function (Router $router) {
         $router->post('/register', [AuthController::class, 'register']);
         $router->post('/login', [AuthController::class, 'login']);
         $router->get('/me', [AuthController::class, 'me'], [AuthMiddleware::class]);
+        $router->post('/logout', [AuthController::class, 'logout'], [AuthMiddleware::class]);
     });
 
     $router->group('files', function (Router $router) {

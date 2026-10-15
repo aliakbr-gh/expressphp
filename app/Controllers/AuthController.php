@@ -24,7 +24,7 @@ final class AuthController
         $id   = User::create(trim($data['name']), $data['username'], password_hash($data['password'], PASSWORD_DEFAULT));
         $user = User::findById($id);
 
-        return $response->success($this->tokenPayload($user), 'Registered successfully.', 201);
+        return $response->success($this->tokenPayload($user, 0), 'Registered successfully.', 201);
     }
 
     public function login(Request $request, Response $response): Response
@@ -40,22 +40,31 @@ final class AuthController
             return $response->error('Invalid username or password.', 401);
         }
 
-        unset($user['password']);
+        $version = (int) $user['token_version'];
+        unset($user['password'], $user['token_version']);
 
-        return $response->success($this->tokenPayload($user), 'Logged in successfully.');
+        return $response->success($this->tokenPayload($user, $version), 'Logged in successfully.');
     }
 
     public function me(Request $request, Response $response): Response
     {
-        dd($request->user());
+        $request->url();
+        dd($request->url());
         return $response->success($request->user(), 'Authenticated user.');
     }
 
-    private function tokenPayload(array $user): array
+    public function logout(Request $request, Response $response): Response
+    {
+        User::revokeTokens($request->user()['id']);
+
+        return $response->success(null, 'Logged out successfully.');
+    }
+
+    private function tokenPayload(array $user, int $tokenVersion): array
     {
         return [
             'user'       => $user,
-            'token'      => JWT::encode(['sub' => $user['id']]),
+            'token'      => JWT::encode(['sub' => $user['id'], 'ver' => $tokenVersion]),
             // 'token_type' => 'Bearer',
             // 'expires_in' => JWT::ttl(),
         ];

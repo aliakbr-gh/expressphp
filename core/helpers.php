@@ -10,10 +10,16 @@ if (!function_exists('e')) {
     /**
      * Escapes a value for safe output in HTML views: <?= e($user['name']) ?>
      * Always use it for data in app/Views/, so user input can't inject HTML or scripts.
+     * null and false print nothing; arrays and other non-printable values print nothing instead of
+     * crashing the page (input like ?name[]=x turns a field into an array).
      */
     function e(mixed $value): string
     {
-        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        if (is_scalar($value) || $value instanceof Stringable) {
+            return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
+
+        return '';
     }
 }
 
@@ -29,11 +35,29 @@ if (!function_exists('dd')) {
      * browser or Postman's "Preview" tab. In the terminal it falls back to var_dump().
      * Like Laravel's, it shows everything (passwords, tokens, $_SERVER): debugging only,
      * remove dd() calls before deploying.
+     *
+     * Only works when app.debug is true. With debug off, a forgotten dd() dumps nothing: it logs
+     * a warning with its file:line and the request ends with a plain 500 "Internal server error."
      */
     function dd(mixed ...$values): never
     {
         $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
         $where  = Core\Log::relative($caller['file'] ?? '?') . ':' . ($caller['line'] ?? '?');
+
+        if (!Core\Config::get('app.debug', false)) {
+            Core\Log::warning("dd() called at {$where} while app.debug is false; nothing was dumped");
+
+            if (PHP_SAPI === 'cli') {
+                fwrite(STDERR, "dd() at {$where} is disabled because app.debug is false.\n");
+                exit(1);
+            }
+
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            (new Core\Response())->error('Internal server error.', 500)->send();
+            exit;
+        }
 
         if (PHP_SAPI === 'cli') {
             echo "dd() at {$where}\n";

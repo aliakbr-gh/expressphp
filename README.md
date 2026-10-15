@@ -64,6 +64,7 @@ core/                        Framework internals (fully commented)              
   Request.php                $request->body, ->query, ->params, validate() ...
   Response.php               $response->success(), ->error(), ->view() ...
   View.php                   Renders plain-PHP templates from app/Views/
+  Path.php                   Case-exact file checks (same behaviour on macOS, Windows, Linux)
   Validator.php              Laravel-style validation rules
   ValidationException.php    Turns failed validation into a 422 response
   HttpException.php          throw new HttpException(404, '...') from anywhere
@@ -179,7 +180,7 @@ All settings live in `config/config.php`. There is no `.env` file. Read any valu
 |---|---|
 | `app.name` / `app.version` | Your API's name and version |
 | `app.env` | `development` or `production` (production makes schema commands need `--force`) |
-| `app.debug` | `true` shows exception details in API responses. **Set it to `false` in production.** |
+| `app.debug` | Development switch; **set it to `false` in production.** With `true`: 500 responses include the exception message, file, line and stack trace; PHP warnings and errors are printed into responses (`display_errors`); `dd()` dumps values. With `false`: 500 responses only say `Internal server error.`, nothing is printed, and `dd()` dumps nothing. Details are written to the log either way. |
 | `app.url` | Public base URL of the API |
 | `app.timezone` | PHP timezone, also used for log timestamps (keep it in sync with `database.timezone`) |
 | `app.trusted_proxies` | Proxies allowed to set `X-Forwarded-For` / `X-Forwarded-Proto`: single IPs, CIDR ranges (`'173.245.48.0/20'`, `'2400:cb00::/32'`), or `'*'` (trust all; only safe when the server is reachable through the proxy alone) |
@@ -229,6 +230,7 @@ Error (`errors` holds details, or `null` when there are none):
 | POST | `/api/v1/auth/register` | — | Create an account; returns the user and a token |
 | POST | `/api/v1/auth/login` | — | Log in; returns the user and a token |
 | GET | `/api/v1/auth/me` | **token** | The logged-in user |
+| POST | `/api/v1/auth/logout` | **token** | Revoke every token of the logged-in user (all devices) |
 | POST | `/api/v1/files/upload` | **token** | Upload one file (multipart field `file`, max 2 MB) |
 | GET | `/api/v1/example/view` | **token** | Example HTML page rendered from `app/Views/example.php` |
 
@@ -272,7 +274,9 @@ curl http://localhost/expressphp/api/v1/auth/me -H "Authorization: Bearer <token
 
 - **Protecting routes:** add `AuthMiddleware` to a route or a group (see [Middleware](#middleware)). Read the user with `$request->user()`, an array: `id`, `name`, `username`, `created_at`, `updated_at`.
 - **Missing, invalid or expired tokens** get `401` with a `WWW-Authenticate: Bearer` header.
-- **Tokens are stateless JWTs** (HS256, signed with `jwt.secret`). There are no refresh tokens: a token works until `jwt.ttl` runs out, and logging out means the client deletes it. A token for a deleted user is rejected.
+- **Tokens are JWTs** (HS256, signed with `jwt.secret`) that carry the user id (`sub`) and the user's token version (`ver`). There are no refresh tokens: a token works until `jwt.ttl` runs out or until it is revoked. A token for a deleted user is rejected.
+- **Logout:** `POST /api/v1/auth/logout` with the token increments the user's `token_version`, so **every** token issued to that user so far stops working (all devices). Logging in again issues a new, valid token. Call `User::revokeTokens($id)` to do the same elsewhere, e.g. after a password change.
+- **Tokens issued before token versioning** (without `ver`) are rejected, so everyone logs in once after this update.
 - **Passwords** are hashed with bcrypt (`password_hash`) and never included in responses.
 - **Failed logins** return the same message and take the same time whether the username or the password was wrong, so usernames can't be discovered.
 
@@ -510,6 +514,7 @@ $request->validate([
 - **What `min`/`max`/`between` measure:** the number's value for `integer`/`numeric` fields, the item count for arrays, kilobytes for files, and otherwise the string length.
 - **Empty optional fields:** fields that aren't `required` skip their other rules when empty.
 - **Uploads PHP already rejected** (e.g. too large) report PHP's reason, such as `"The file is too large."`.
+- **`mimes`** checks the type detected from the file's contents, not its name. `jpeg`, `jpe` and `jfif` count as `jpg`, upper case is ignored, so `mimes:jpeg,PNG` works.
 
 You can also validate any array: `Core\Validator::make($data, $rules)->fails()` / `->errors()` / `->validate()`.
 
@@ -626,7 +631,7 @@ return new class {
 
 | Table | Columns |
 |---|---|
-| `users` | `id`, `name`, `username` (unique, case-insensitive), `password` (bcrypt hash), `created_at`, `updated_at` |
+| `users` | `id`, `name`, `username` (unique, case-insensitive), `password` (bcrypt hash), `token_version` (incremented on logout to revoke tokens), `created_at`, `updated_at` |
 | `migrations` | Which migrations have run (managed by `php cli`) |
 
 ## Generators
@@ -708,6 +713,7 @@ dd($request->body, $user); // several values, each in its own block
   In Postman, open the response's **Preview** tab.
 - **Object properties** are prefixed like Laravel: `+` public, `#` protected, `-` private.
 - **Like Laravel's, it shows everything**, including passwords, tokens and the request's private `-server` (`$_SERVER`). It's for debugging only.
+- **Only works when `app.debug` is `true`.** With debug off, a forgotten `dd()` dumps nothing: it writes a warning with its `file:line` to the log, and the request answers a plain `500 Internal server error.`
 - **In the terminal** it uses `var_dump()`.
 - **Remove `dd()` calls when you're done.** While one is in a route, that route returns the dump instead of its normal response, and `php tests/tests.php` stops when a test reaches it.
 

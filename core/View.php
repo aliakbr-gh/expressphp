@@ -62,11 +62,13 @@ final class View
             throw new RuntimeException("Invalid view name: {$view}");
         }
 
-        $file = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($file)) {
-            throw new RuntimeException("View not found: {$view}");
+        // Exact letter case on every OS: 'Example' must not find example.php on macOS/Windows
+        // and then fail on a Linux server.
+        $relative = str_replace('.', '/', $view) . '.php';
+        if (!Path::isFileExact(BASE_PATH . '/app/Views', $relative)) {
+            throw new RuntimeException("View not found: {$view} (view names are case-sensitive)");
         }
 
-        return $file;
+        return BASE_PATH . '/app/Views/' . $relative;
     }
 }

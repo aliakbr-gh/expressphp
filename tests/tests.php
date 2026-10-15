@@ -305,6 +305,60 @@ test('Response helpers', function () {
     assertTrue($h->headers === ['X-A' => '1', 'X-B' => '2'] && $h->status === 202, 'chaining');
 });
 
+test('e() escapes scalars and prints nothing for arrays / null', function () {
+    assertTrue(e('<b>"x"</b>') === '&lt;b&gt;&quot;x&quot;&lt;/b&gt;', 'escape');
+    assertTrue(e(5) === '5' && e(1.5) === '1.5' && e(true) === '1' && e(false) === '' && e(null) === '', 'scalars');
+    assertTrue(e(['x']) === '' && e(new stdClass()) === '', 'non-scalars');
+    $stringable = new class { public function __toString(): string { return '<i>'; } };
+    assertTrue(e($stringable) === '&lt;i&gt;', 'Stringable');
+});
+
+test('dd() dumps only when app.debug is true', function () {
+    $php  = escapeshellarg(PHP_BINARY);
+    $boot = var_export(BASE_PATH . '/core/bootstrap.php', true);
+    $run  = function (bool $debug) use ($php, $boot): array {
+        $code = "require {$boot}; Core\\Config::set('app.debug', " . var_export($debug, true) . "); Core\\Config::set('logging.enabled', false); dd('SECRET_VALUE');";
+        exec("{$php} -r " . escapeshellarg($code) . ' 2>&1', $out, $status);
+        return [implode("\n", $out), $status];
+    };
+
+    [$out] = $run(true);
+    assertTrue(str_contains($out, 'SECRET_VALUE'), 'debug on: nothing dumped');
+
+    [$out, $status] = $run(false);
+    assertTrue(!str_contains($out, 'SECRET_VALUE') && str_contains($out, 'disabled') && $status === 1, 'debug off: ' . $out);
+});
+
+test('Class and view names must match the file case on every OS', function () {
+    assertTrue(Core\Path::isFileExact(BASE_PATH . '/core', 'Request.php'), 'exact name');
+    assertTrue(!Core\Path::isFileExact(BASE_PATH . '/core', 'request.php'), 'wrong file case accepted');
+    assertTrue(!Core\Path::isFileExact(BASE_PATH, 'Core/Request.php'), 'wrong folder case accepted');
+    assertTrue(!class_exists('App\\Controllers\\examplecontroller'), 'class loaded with wrong case');
+    assertTrue(View::exists('example') && !View::exists('Example'), 'view loaded with wrong case');
+});
+
+test('Cookies are Secure behind a trusted HTTPS proxy', function () {
+    $saved = [$_SERVER, Config::get('app.trusted_proxies')];
+    $secure = function (): bool {
+        $cookies = (fn() => $this->cookies)->call((new Response())->cookie('a', 'b'));
+        return $cookies['a'][1]['secure'];
+    };
+    try {
+        unset($_SERVER['HTTPS']);
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+
+        Config::set('app.trusted_proxies', []);
+        assertTrue($secure() === false, 'untrusted X-Forwarded-Proto made the cookie secure');
+
+        Config::set('app.trusted_proxies', ['10.0.0.0/8']);
+        assertTrue($secure() === true, 'trusted proxy HTTPS ignored');
+    } finally {
+        $_SERVER = $saved[0];
+        Config::set('app.trusted_proxies', $saved[1]);
+    }
+});
+
 test('Response properties are read-only', function () {
     $r = (new Response())->success();
     assertTrue(isset($r->status, $r->body, $r->headers) && !isset($r->nope), 'isset');
@@ -386,6 +440,20 @@ test('Validator reports Laravel-style errors', function () {
     assertTrue($e['name'] === ['The name field must be at least 10 characters.'], json_encode($e['name']));
     assertTrue($e['title'] === ['Please give a title.'], 'custom message');
     assertTrue(isset($e['code']), 'regex');
+});
+
+test('Validator mimes accepts jpeg / jpg / upper case alike', function () {
+    $tmp = tempnam(sys_get_temp_dir(), 'jp');
+    file_put_contents($tmp, base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAABAAEBAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k='));
+    try {
+        $file = new UploadedFile($tmp, 'photo.jpeg', UPLOAD_ERR_OK, filesize($tmp), test: true);
+        foreach (['mimes:jpeg', 'mimes:jpg', 'mimes:JPEG,png', 'mimes:png,jpe'] as $rule) {
+            assertTrue(Validator::make(['f' => $file], ['f' => $rule])->passes(), "{$rule} rejected a JPEG");
+        }
+        assertTrue(Validator::make(['f' => $file], ['f' => 'mimes:png,gif'])->fails(), 'png,gif accepted a JPEG');
+    } finally {
+        @unlink($tmp);
+    }
 });
 
 test('Validator unique / exists reject arrays without querying', function () {
@@ -1003,6 +1071,24 @@ test('Auth register -> login -> me flow', function () {
         $view = $call('GET', '/api/v1/example/view', [], ['Authorization' => "Bearer {$token}"]);
         assertTrue($view->status === 200 && str_contains($view->body, 'zz_flow_test'), 'example view ' . $view->status);
         assertTrue($call('GET', '/api/v1/example/view')->status === 401, 'example view without token');
+        assertTrue(!array_key_exists('token_version', $me->body['data']), 'me leaked token_version');
+
+        // Logout revokes every token issued so far (the register token too), but not new ones.
+        $regToken = $reg->body['data']['token'];
+        $logout = $call('POST', '/api/v1/auth/logout', [], ['Authorization' => "Bearer {$token}"]);
+        assertTrue($logout->status === 200, 'logout ' . $logout->status);
+        assertTrue($call('GET', '/api/v1/auth/me', [], ['Authorization' => "Bearer {$token}"])->status === 401, 'token still valid after logout');
+        assertTrue($call('GET', '/api/v1/auth/me', [], ['Authorization' => "Bearer {$regToken}"])->status === 401, 'older token still valid after logout');
+        assertTrue($call('POST', '/api/v1/auth/logout', [], ['Authorization' => "Bearer {$token}"])->status === 401, 'logout twice');
+
+        $again = $call('POST', '/api/v1/auth/login', ['username' => 'zz_flow_test', 'password' => 'secret123']);
+        $fresh = $again->body['data']['token'];
+        assertTrue($call('GET', '/api/v1/auth/me', [], ['Authorization' => "Bearer {$fresh}"])->status === 200, 'new login after logout');
+
+        // A validly signed token without the "ver" claim (issued before token versioning) is rejected.
+        $id = $again->body['data']['user']['id'];
+        $legacy = Core\JWT::encode(['sub' => $id]);
+        assertTrue($call('GET', '/api/v1/auth/me', [], ['Authorization' => "Bearer {$legacy}"])->status === 401, 'token without ver accepted');
     } finally {
         Database::execute("DELETE FROM users WHERE username = 'zz_flow_test'");
     }
@@ -1010,7 +1096,7 @@ test('Auth register -> login -> me flow', function () {
 
 test('Users table exists with expected columns', function () {
     $columns = array_column(Database::fetchAll('SHOW COLUMNS FROM users'), 'Field');
-    $expected = ['id', 'name', 'username', 'password', 'created_at', 'updated_at'];
+    $expected = ['id', 'name', 'username', 'password', 'token_version', 'created_at', 'updated_at'];
     assertTrue($columns === $expected, json_encode($columns));
 });
 

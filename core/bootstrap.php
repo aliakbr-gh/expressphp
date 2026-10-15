@@ -10,20 +10,27 @@ declare(strict_types=1);
 // Project root (this file lives in core/).
 define('BASE_PATH', dirname(__DIR__));
 
+// Case-exact file checks, used by the autoloader below (so it is loaded by hand).
+require BASE_PATH . '/core/Path.php';
+
 // PSR-4 autoloader:
 //   App\Controllers\UserController => app/Controllers/UserController.php  (your application code)
 //   Core\Router                    => core/Router.php                     (framework internals)
+// Names must match the file's letter case exactly, on every OS: macOS and Windows would otherwise
+// load app/Controllers/userController.php for UserController, and the app would only break on Linux.
 spl_autoload_register(static function (string $class): void {
     $namespaces = [
-        'App\\'  => BASE_PATH . '/app/',
-        'Core\\' => BASE_PATH . '/core/',
+        'App\\'  => BASE_PATH . '/app',
+        'Core\\' => BASE_PATH . '/core',
     ];
 
     foreach ($namespaces as $prefix => $dir) {
         if (str_starts_with($class, $prefix)) {
-            $file = $dir . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
-            if (is_file($file)) {
-                require $file;
+            $relative = str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+            if (Core\Path::isFileExact($dir, $relative)) {
+                require $dir . '/' . $relative;
+            } elseif (is_file($dir . '/' . $relative)) {
+                Core\Log::warning("Class {$class} not loaded: the file name's letter case differs (file names are case-sensitive on Linux)");
             }
             return;
         }

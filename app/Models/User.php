@@ -28,8 +28,18 @@ final class User
     public static function findByUsernameWithPassword(string $username): ?array
     {
         return Database::fetch(
-            'SELECT ' . self::COLUMNS . ', password FROM users WHERE username = ? LIMIT 1',
+            'SELECT ' . self::COLUMNS . ', password, token_version FROM users WHERE username = ? LIMIT 1',
             [$username]
         );
+    }
+
+    public static function findByIdWithTokenVersion(int $id): ?array
+    {
+        return Database::fetch('SELECT ' . self::COLUMNS . ', token_version FROM users WHERE id = ? LIMIT 1', [$id]);
+    }
+
+    public static function revokeTokens(int $id): void
+    {
+        Database::execute('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [$id]);
     }
 }

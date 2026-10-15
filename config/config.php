@@ -18,7 +18,7 @@ return [
     'app' => [
         'name'     => 'ExpressPHP API',    // shown in health responses and logs
         'env'      => 'development', // development | production
-        'debug'    => true,          // set false in production: hides error details
+        'debug'    => true,          // set false in production: hides error details, PHP warnings and dd()
         'url'      => 'http://localhost/expressphp', // public base URL of the API, no trailing slash
         'timezone' => 'UTC',         // PHP timezone for date() and log timestamps
         'version'  => '1.0.0',       // your API version
