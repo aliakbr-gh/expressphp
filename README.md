@@ -17,6 +17,7 @@ rate limiting, logging and a Laravel-style `dd()`, and borrows Laravel's naming 
 - [Adding a new feature (step by step)](#adding-a-new-feature-step-by-step)
 - [Routing](#routing)
 - [Controllers, Request and Response](#controllers-request-and-response)
+- [Views](#views)
 - [Validation](#validation)
 - [Middleware](#middleware)
 - [Models](#models)
@@ -34,7 +35,7 @@ rate limiting, logging and a Laravel-style `dd()`, and borrows Laravel's naming 
 
 | | |
 |---|---|
-| PHP | **8.4 or newer** (it uses asymmetric property visibility and `request_parse_body()`) |
+| PHP | **8.1 – 8.5** (tested on 8.1, 8.2, 8.3 and 8.4) |
 | PHP extensions | `pdo_mysql`, `fileinfo`, `json` (`mbstring` recommended) |
 | MySQL | 8.0+ (or MariaDB 10.6+) |
 | Web server | Apache with `mod_rewrite` and `AllowOverride All`, or any server that sends requests to `public/index.php` |
@@ -45,19 +46,23 @@ rate limiting, logging and a Laravel-style `dd()`, and borrows Laravel's naming 
 app/                         Your application code (no comments by convention)   namespace App\
   Controllers/
     AuthController.php       register, login, me
+    ExampleController.php    renders the example view
     FileController.php       upload
     HealthController.php     server and database health checks
   Middlewares/
     AuthMiddleware.php       requires a valid JWT
   Models/
     User.php                 raw SQL queries for the users table
+  Views/
+    example.php              HTML template rendered by ExampleController
 core/                        Framework internals (fully commented)              namespace Core\
   bootstrap.php              Startup: autoloader, config, error handling, helpers
   Config.php                 Config::get('database.host')
   Database.php               PDO connection + query helpers
   Router.php                 Routes, groups, middleware
   Request.php                $request->body, ->query, ->params, validate() ...
-  Response.php               $response->success(), ->error() ...
+  Response.php               $response->success(), ->error(), ->view() ...
+  View.php                   Renders plain-PHP templates from app/Views/
   Validator.php              Laravel-style validation rules
   ValidationException.php    Turns failed validation into a 422 response
   HttpException.php          throw new HttpException(404, '...') from anywhere
@@ -68,7 +73,7 @@ core/                        Framework internals (fully commented)              
   RateLimiter.php            Global per-IP request limit
   Log.php                    Daily log files
   Migrator.php               Database migrations
-  helpers.php                Global functions: dd()
+  helpers.php                Global functions: dd(), e()
 config/config.php            The one config file (no .env)
 database/migrations/         Migration files
 public/index.php             Front controller, which receives every request
@@ -191,6 +196,7 @@ Error (`errors` holds details, or `null` when there are none):
 | POST | `/api/v1/auth/login` | — | Log in; returns the user and a token |
 | GET | `/api/v1/auth/me` | **token** | The logged-in user |
 | POST | `/api/v1/files/upload` | **token** | Upload one file (multipart field `file`, max 2 MB) |
+| GET | `/api/v1/example/view` | **token** | Example HTML page rendered from `app/Views/example.php` |
 
 ## Authentication (JWT)
 
@@ -403,6 +409,7 @@ return $response->error('Invalid data.', 422, $errors);
 return $response->paginate($items, $total, $page, 15);  // data = { items, pagination }
 return $response->noContent();                          // 204, empty body (outside the standard shape)
 return $response->download($path, 'report.pdf');
+return $response->view('example', ['title' => 'Hi']);  // HTML from app/Views/example.php (see Views)
 return $response->json($raw);                           // raw JSON, skips the standard shape
 
 $response->header('X-Total', '5')->withHeaders([...])->cookie('token', $t, 60)->withoutCookie('old')->success($data);
@@ -413,6 +420,38 @@ You can also throw an HTTP error from anywhere (controllers, models, middleware)
 ```php
 throw new Core\HttpException(403, 'You cannot do that.');
 ```
+
+## Views
+
+Views are plain PHP templates in `app/Views/`. Render one from a controller with `$response->view()`;
+each key of the data array becomes a variable in the template:
+
+```php
+// app/Controllers/ExampleController.php
+return $response->view('example', [
+    'title' => 'Example view',
+    'user'  => $request->user(),
+    'items' => ['Routing', 'Middleware', 'Views'],
+]);
+
+return $response->view('users.profile', $data);       // app/Views/users/profile.php
+return $response->view('errors.missing', $data, 404); // custom status (and optional headers)
+```
+
+```php
+<!-- app/Views/example.php -->
+<h1><?= e($title) ?></h1>
+<?php foreach ($items as $item): ?>
+    <li><?= e($item) ?></li>
+<?php endforeach; ?>
+```
+
+- **Always print values with `e()`**: it escapes HTML so user data can't inject markup or scripts.
+- The response is sent as `text/html`. Errors thrown before the view renders (e.g. a `401` from
+  `AuthMiddleware`) are still JSON.
+- `View::render('example', $data)` returns the HTML as a string (e.g. for emails).
+- The example route `GET /api/v1/example/view` sits behind `AuthMiddleware`, so send
+  `Authorization: Bearer <token>`; in Postman, open the response's **Preview** tab.
 
 ## Validation
 

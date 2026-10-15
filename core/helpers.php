@@ -6,6 +6,17 @@ declare(strict_types=1);
  * Global helper functions, loaded by core/bootstrap.php so they work in every file.
  */
 
+if (!function_exists('e')) {
+    /**
+     * Escapes a value for safe output in HTML views: <?= e($user['name']) ?>
+     * Always use it for data in app/Views/, so user input can't inject HTML or scripts.
+     */
+    function e(mixed $value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}
+
 if (!function_exists('dd')) {
     /**
      * "Dump and die" like Laravel: shows the given values and stops the request immediately.

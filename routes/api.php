@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Controllers\AuthController;
+use App\Controllers\ExampleController;
 use App\Controllers\FileController;
 use App\Controllers\HealthController;
 use App\Middlewares\AuthMiddleware;
@@ -23,4 +24,10 @@ $router->group('api/v1', function (Router $router) {
     $router->group('files', function (Router $router) {
         $router->post('/upload', [FileController::class, 'upload']);
     }, [AuthMiddleware::class]);
+
+    $router->group('example', function (Router $router) {
+        $router->get('/view', [ExampleController::class, 'show']);
+    }, [AuthMiddleware::class]);
 });
+
+$router->get('/view', [ExampleController::class, 'show']);

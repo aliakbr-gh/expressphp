@@ -31,7 +31,8 @@ final class UploadedFile
     private ?string $mime = null;
 
     /**
-     * @param bool $test Skip the is_uploaded_file() check (only for tests).
+     * @param bool $test Skip the is_uploaded_file() check: for tests, and for files the framework wrote
+     *                   itself (multipart PUT/PATCH/DELETE on PHP < 8.4, see Request::parseMultipart()).
      */
     public function __construct(
         public readonly string $path,

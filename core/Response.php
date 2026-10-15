@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Core;
 
+use Error;
 use RuntimeException;
 
 /**
@@ -24,19 +25,28 @@ use RuntimeException;
  *   $response->error('Message', 404, $errors)
  *   $response->noContent()                                  204, empty body
  *   $response->download($path, 'name.pdf')
+ *   $response->view('example', ['title' => 'Hi'])          HTML page rendered from app/Views/example.php
  *   $response->json($anything)                              escape hatch: raw JSON, bypasses the envelope
  *
  * Chainable: ->header(), ->withHeaders(), ->cookie(), ->withoutCookie(), ->setStatusCode()
  * Read-only properties: $response->status, $response->body, $response->headers
+ * (private, exposed through __get() so this works on PHP 8.1+)
+ *
+ * @property-read int   $status
+ * @property-read mixed $body
+ * @property-read array $headers
  */
 final class Response
 {
-    public private(set) int $status;
-    public private(set) mixed $body;
-    public private(set) array $headers = [];
+    private const READ_ONLY = ['status', 'body', 'headers'];
+
+    private int $status;
+    private mixed $body;
+    private array $headers = [];
 
     private array $cookies = [];
     private ?string $filePath = null;
+    private bool $html = false;
 
     /** Controllers receive a ready-made instance; build one directly only outside controllers. */
     public function __construct(mixed $body = null, int $status = 200, array $headers = [])
@@ -92,6 +102,20 @@ final class Response
         $this->body     = $data;
         $this->status   = $status;
         $this->filePath = null;
+        $this->html     = false;
+        return $this->withHeaders($headers);
+    }
+
+    /**
+     * HTML page rendered from app/Views/<name>.php; each key of $data becomes a variable in the view.
+     * 'users.profile' => app/Views/users/profile.php. The body is the rendered HTML string.
+     */
+    public function view(string $view, array $data = [], int $status = 200, array $headers = []): self
+    {
+        $this->body     = View::render($view, $data);
+        $this->status   = $status;
+        $this->filePath = null;
+        $this->html     = true;
         return $this->withHeaders($headers);
     }
 
@@ -108,6 +132,7 @@ final class Response
         $this->body     = null;
         $this->status   = 200;
         $this->filePath = $path;
+        $this->html     = false;
 
         return $this->withHeaders($headers + [
             'Content-Type'        => (new \finfo(FILEINFO_MIME_TYPE))->file($path) ?: 'application/octet-stream',
@@ -170,6 +195,34 @@ final class Response
         return $this;
     }
 
+    // ------------------------------------------------------------------ Read-only properties
+
+    /** $response->status, ->body, ->headers. */
+    public function __get(string $key): mixed
+    {
+        if (!in_array($key, self::READ_ONLY, true)) {
+            throw new Error('Undefined property ' . self::class . '::$' . $key);
+        }
+
+        return $this->{$key};
+    }
+
+    public function __isset(string $key): bool
+    {
+        return in_array($key, self::READ_ONLY, true) && isset($this->{$key});
+    }
+
+    /** Read-only: use the methods above (setStatusCode(), header(), success() ...) instead. */
+    public function __set(string $key, mixed $value): void
+    {
+        throw new Error('Cannot modify read-only property ' . self::class . '::$' . $key);
+    }
+
+    public function __unset(string $key): void
+    {
+        throw new Error('Cannot unset read-only property ' . self::class . '::$' . $key);
+    }
+
     // ------------------------------------------------------------------ Output
 
     /**
@@ -182,7 +235,7 @@ final class Response
         // answer with a clean 500. Invalid UTF-8 (e.g. raw bytes in a MySQL error) becomes U+FFFD "�"
         // instead of failing; INF/NaN or extreme nesting still throw.
         $json = null;
-        if ($this->filePath === null && $this->status !== 204) {
+        if ($this->filePath === null && !$this->html && $this->status !== 204) {
             $json = json_encode(
                 $this->body,
                 JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
@@ -193,7 +246,9 @@ final class Response
         if (!headers_sent()) {
             http_response_code($this->status);
 
-            if ($this->filePath === null && $this->status !== 204) {
+            if ($this->html) {
+                header('Content-Type: text/html; charset=utf-8');
+            } elseif ($this->filePath === null && $this->status !== 204) {
                 header('Content-Type: application/json; charset=utf-8');
             }
             header('X-Content-Type-Options: nosniff');
@@ -213,7 +268,9 @@ final class Response
             return;
         }
 
-        if ($json !== null) {
+        if ($this->html) {
+            echo $this->body;
+        } elseif ($json !== null) {
             echo $json;
         }
     }

@@ -25,6 +25,7 @@ use Core\Router;
 use Core\UploadedFile;
 use Core\ValidationException;
 use Core\Validator;
+use Core\View;
 
 $results = [];
 
@@ -293,6 +294,18 @@ test('Response helpers', function () {
     assertTrue($h->headers === ['X-A' => '1', 'X-B' => '2'] && $h->status === 202, 'chaining');
 });
 
+test('Response properties are read-only', function () {
+    $r = (new Response())->success();
+    assertTrue(isset($r->status, $r->body, $r->headers) && !isset($r->nope), 'isset');
+    foreach (['status', 'body', 'headers'] as $property) {
+        try {
+            $r->{$property} = null;
+            throw new RuntimeException("{$property} was writable");
+        } catch (Error) {
+        }
+    }
+});
+
 test('Response keeps headers set before content', function () {
     $r = (new Response())->header('X-Request-Id', 'abc')->success(['id' => 5], 'Created.', 201);
     assertTrue($r->status === 201 && $r->headers['X-Request-Id'] === 'abc', 'header lost');
@@ -303,6 +316,40 @@ test('Response paginate meta', function () {
     $m = $p->body['data']['pagination'];
     assertTrue(count($p->body['data']['items']) === 2, 'items');
     assertTrue($m['last_page'] === 2 && $m['from'] === 11 && $m['to'] === 12 && $m['total'] === 12, json_encode($m));
+});
+
+test('View renders data and escapes it with e()', function () {
+    $html = View::render('example', [
+        'title' => '<script>x</script>',
+        'user'  => ['name' => 'Ali', 'username' => 'ali'],
+        'items' => ['One', 'Two'],
+        'time'  => 'now',
+    ]);
+    assertTrue(str_contains($html, '&lt;script&gt;x&lt;/script&gt;') && !str_contains($html, '<script>'), 'not escaped');
+    assertTrue(str_contains($html, 'Ali') && str_contains($html, '<li>Two</li>'), 'data missing');
+});
+
+test('View rejects missing and path-traversal names', function () {
+    assertTrue(View::exists('example') && !View::exists('nope') && !View::exists('../config/config'), 'exists');
+    try {
+        View::render('../../config/config');
+        throw new RuntimeException('traversal allowed');
+    } catch (RuntimeException $e) {
+        assertTrue(str_starts_with($e->getMessage(), 'Invalid view name'), $e->getMessage());
+    }
+});
+
+test('Response view() returns HTML, json() switches back', function () {
+    $data = ['title' => 'T', 'user' => ['name' => 'A', 'username' => 'a'], 'items' => [], 'time' => 'now'];
+    $r = (new Response())->view('example', $data, 201);
+    assertTrue($r->status === 201 && is_string($r->body) && str_contains($r->body, '<title>T</title>'), 'view');
+
+    ob_start();
+    $r->send();
+    $out = ob_get_clean();
+    assertTrue(str_contains($out, '<h1>T</h1>'), 'send output');
+
+    assertTrue((new Response())->view('example', $data)->success(['id' => 1])->body['data'] === ['id' => 1], 'switch to json');
 });
 
 // ---------------------------------------------------------------- Validation
@@ -591,6 +638,31 @@ test('R1: method override keeps the form body of a real POST', function () {
     }
 });
 
+test('Multipart parser (PUT/PATCH/DELETE on PHP < 8.4) matches PHP\'s layout', function () {
+    $parse = (new ReflectionMethod(Request::class, 'parseMultipart'))->getClosure();
+    $raw = "--XB\r\n"
+        . "Content-Disposition: form-data; name=\"name\"\r\n\r\nAli\r\n"
+        . "--XB\r\nContent-Disposition: form-data; name=\"user[city]\"\r\n\r\nLahore\r\n"
+        . "--XB\r\nContent-Disposition: form-data; name=\"avatar\"; filename=\"me.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n"
+        . "--XB\r\nContent-Disposition: form-data; name=\"docs[]\"; filename=\"a.txt\"\r\n\r\nA\r\n"
+        . "--XB\r\nContent-Disposition: form-data; name=\"docs[]\"; filename=\"b.txt\"\r\n\r\nBB\r\n"
+        . "--XB--\r\n";
+
+    [$body, $files, $selfParsed] = $parse($raw, 'multipart/form-data; boundary=XB');
+    assertTrue($body === ['name' => 'Ali', 'user' => ['city' => 'Lahore']], json_encode($body));
+    assertTrue($selfParsed === true, 'self parsed flag');
+    assertTrue($files['avatar']['name'] === 'me.txt' && $files['avatar']['size'] === 5, json_encode($files['avatar']));
+    assertTrue(file_get_contents($files['avatar']['tmp_name']) === 'hello', 'avatar content');
+    assertTrue($files['docs']['name'] === ['a.txt', 'b.txt'] && $files['docs']['size'] === [1, 2], json_encode($files['docs']));
+
+    try {
+        $parse("--XB\r\nno headers", 'multipart/form-data; boundary=XB');
+        throw new RuntimeException('malformed body accepted');
+    } catch (Core\HttpException $e) {
+        assertTrue($e->status() === 400, 'status ' . $e->status());
+    }
+});
+
 test('R4: fromGlobals() never reads the body; readBody() does', function () {
     $saved = $_SERVER;
     try {
@@ -833,6 +905,10 @@ test('Auth register -> login -> me flow', function () {
 
         $anon = $call('GET', '/api/v1/auth/me');
         assertTrue($anon->status === 401 && $anon->headers['WWW-Authenticate'] === 'Bearer', 'me without token ' . $anon->status);
+
+        $view = $call('GET', '/api/v1/example/view', [], ['Authorization' => "Bearer {$token}"]);
+        assertTrue($view->status === 200 && str_contains($view->body, 'zz_flow_test'), 'example view ' . $view->status);
+        assertTrue($call('GET', '/api/v1/example/view')->status === 401, 'example view without token');
     } finally {
         Database::execute("DELETE FROM users WHERE username = 'zz_flow_test'");
     }

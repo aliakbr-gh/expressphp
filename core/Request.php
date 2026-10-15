@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Core;
 
+use Error;
 use RequestParseBodyException;
 
 /**
  * The current HTTP request.
  *
- * Read-only properties:
+ * Read-only properties (private, exposed through __get() so this works on PHP 8.1+):
  *   $request->method   'GET', 'POST', ...
  *   $request->path     '/api/v1/users/5'
  *   $request->body     parsed JSON / form body (POST, PUT, PATCH, DELETE)
@@ -20,17 +21,29 @@ use RequestParseBodyException;
  *   $request->cookies
  *
  * Shortcut: $request->email looks in route params, then body, then query (like Laravel).
+ *
+ * @property-read string $method
+ * @property-read string $path
+ * @property-read array  $query
+ * @property-read array  $body
+ * @property-read array  $params
+ * @property-read array  $headers
+ * @property-read array  $files
+ * @property-read array  $cookies
  */
 final class Request
 {
-    public private(set) string $method;
-    public private(set) string $path;
-    public private(set) array $query;
-    public private(set) array $body;
-    public private(set) array $params = [];
-    public private(set) array $headers;
-    public private(set) array $files;
-    public private(set) array $cookies;
+    /** Properties readable from outside as $request->name but never writable. */
+    private const READ_ONLY = ['method', 'path', 'query', 'body', 'params', 'headers', 'files', 'cookies'];
+
+    private string $method;
+    private string $path;
+    private array $query;
+    private array $body;
+    private array $params = [];
+    private array $headers;
+    private array $files;
+    private array $cookies;
 
     private array $attributes = [];
 
@@ -140,10 +153,10 @@ final class Request
             throw new HttpException(413, 'Request body is too large.');
         }
 
-        [$body, $files] = self::parseBody($realMethod, $this->headers['content-type'] ?? '');
+        [$body, $files, $selfParsed] = self::parseBody($realMethod, $this->headers['content-type'] ?? '') + [2 => false];
 
         $this->body  = $body;
-        $this->files = self::normalizeFiles($files);
+        $this->files = self::normalizeFiles($files, $selfParsed);
     }
 
     /** Builds a request by hand — handy in tests. */
@@ -215,7 +228,10 @@ final class Request
         return $headers;
     }
 
-    /** @return array{0: array, 1: array} [body, raw $_FILES-style files] */
+    /**
+     * @return array{0: array, 1: array, 2?: bool} [body, raw $_FILES-style files, true when the files
+     *         were written by parseMultipart() rather than PHP]
+     */
     private static function parseBody(string $method, string $contentType): array
     {
         $type = strtolower($contentType);
@@ -248,14 +264,144 @@ final class Request
             || str_contains($type, 'application/x-www-form-urlencoded');
 
         if ($isForm && in_array($method, ['PUT', 'PATCH', 'DELETE'], true)) {
-            try {
-                return request_parse_body();
-            } catch (RequestParseBodyException) {
-                throw new HttpException(400, 'Malformed request body.');
+            // PHP 8.4+ has a native parser; older versions use our own (same result shape).
+            if (function_exists('request_parse_body')) {
+                try {
+                    return request_parse_body();
+                } catch (RequestParseBodyException) {
+                    throw new HttpException(400, 'Malformed request body.');
+                }
             }
+
+            $max = self::maxBodySize();
+            $raw = (string) file_get_contents('php://input', false, null, 0, $max + 1);
+            if (strlen($raw) > $max) {
+                throw new HttpException(413, 'Request body is too large.');
+            }
+
+            if (str_contains($type, 'application/x-www-form-urlencoded')) {
+                parse_str($raw, $data);
+                return [$data, []];
+            }
+
+            return self::parseMultipart($raw, $contentType);
         }
 
         return [[], []];
+    }
+
+    /**
+     * multipart/form-data parser for PUT/PATCH/DELETE on PHP < 8.4 (no request_parse_body()).
+     * Fields and files come back in the same layout PHP uses for $_POST and $_FILES, including
+     * nested names like docs[] or user[avatar]. Files go to the system temp folder and are
+     * deleted at the end of the request unless stored.
+     *
+     * @return array{0: array, 1: array, 2: true}
+     */
+    private static function parseMultipart(string $raw, string $contentType): array
+    {
+        if (!preg_match('/boundary=(?:"([^"]+)"|([^;\s]+))/i', $contentType, $m)) {
+            throw new HttpException(400, 'Malformed request body.');
+        }
+        $boundary = '--' . ($m[1] !== '' ? $m[1] : $m[2]);
+
+        $parts = explode($boundary, $raw);
+        $last  = array_pop($parts);
+        if ($parts === [] || !str_starts_with((string) $last, '--')) {
+            throw new HttpException(400, 'Malformed request body.');
+        }
+        array_shift($parts); // preamble before the first boundary
+
+        $fields    = [];
+        $files     = [];
+        $fileCount = 0;
+        $maxFiles  = (int) ini_get('max_file_uploads');
+        $maxSize   = self::iniBytes((string) ini_get('upload_max_filesize'));
+
+        foreach ($parts as $part) {
+            $part = preg_replace('/^\r?\n/', '', $part);
+            $part = preg_replace('/\r?\n$/', '', $part);
+
+            $split = strpos($part, "\r\n\r\n");
+            if ($split === false) {
+                throw new HttpException(400, 'Malformed request body.');
+            }
+            $head    = substr($part, 0, $split);
+            $content = substr($part, $split + 4);
+
+            if (!preg_match('/^content-disposition:\s*form-data\s*;(.*)$/im', $head, $disposition)
+                || !preg_match('/\bname="([^"]*)"/i', $disposition[1], $name)) {
+                throw new HttpException(400, 'Malformed request body.');
+            }
+            $name = $name[1];
+
+            // A plain field: collected as a query string so parse_str() builds nested arrays like PHP does.
+            if (!preg_match('/\bfilename="([^"]*)"/i', $disposition[1], $filename)) {
+                $fields[] = rawurlencode($name) . '=' . rawurlencode($content);
+                continue;
+            }
+
+            $file = ['name' => basename(str_replace('\\', '/', $filename[1])), 'type' => '', 'tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE, 'size' => 0];
+
+            if ($file['name'] !== '' || $content !== '') {
+                $file['type'] = preg_match('/^content-type:\s*(.+)$/im', $head, $type) ? trim($type[1]) : '';
+                $file['size'] = strlen($content);
+
+                if ($maxFiles > 0 && ++$fileCount > $maxFiles) {
+                    continue; // PHP also silently skips files beyond max_file_uploads
+                }
+
+                if ($maxSize > 0 && $file['size'] > $maxSize) {
+                    $file['error'] = UPLOAD_ERR_INI_SIZE;
+                } else {
+                    $tmp = tempnam(sys_get_temp_dir(), 'php');
+                    if ($tmp === false || file_put_contents($tmp, $content) === false) {
+                        $file['error'] = UPLOAD_ERR_CANT_WRITE;
+                    } else {
+                        $file['tmp_name'] = $tmp;
+                        $file['error']    = UPLOAD_ERR_OK;
+                        register_shutdown_function(static function () use ($tmp): void {
+                            if (is_file($tmp)) {
+                                @unlink($tmp);
+                            }
+                        });
+                    }
+                }
+            }
+
+            self::addFile($files, $name, $file);
+        }
+
+        parse_str(implode('&', $fields), $body);
+
+        return [$body, $files, true];
+    }
+
+    /**
+     * Places one file in $_FILES layout: 'avatar' => [name, type, ...], while 'docs[]' or
+     * 'user[avatar]' nest each property separately: ['docs' => ['name' => [0 => ...], ...]].
+     */
+    private static function addFile(array &$files, string $name, array $file): void
+    {
+        if (!preg_match('/^([^\[]+)((?:\[[^\]]*\])*)$/', $name, $m)) {
+            return;
+        }
+        [, $base, $path] = $m;
+        preg_match_all('/\[([^\]]*)\]/', $path, $keys);
+
+        if ($keys[1] === []) {
+            $files[$base] = $file;
+            return;
+        }
+
+        foreach ($file as $property => $value) {
+            $node = &$files[$base][$property];
+            foreach ($keys[1] as $key) {
+                $node = &$node[$key === '' ? count((array) $node) : $key];
+            }
+            $node = $value;
+            unset($node);
+        }
     }
 
     /**
@@ -265,7 +411,15 @@ final class Request
      */
     public static function maxBodySize(): int
     {
-        $value = trim((string) ini_get('post_max_size'));
+        $bytes = self::iniBytes((string) ini_get('post_max_size'));
+
+        return $bytes > 0 ? $bytes : 8 * 1024 ** 2;
+    }
+
+    /** php.ini size shorthand to bytes: '8M' => 8388608, '512K' => 524288, '0' => 0. */
+    private static function iniBytes(string $value): int
+    {
+        $value = trim($value);
         $bytes = (int) $value;
 
         $bytes *= match (strtolower(substr($value, -1))) {
@@ -275,18 +429,18 @@ final class Request
             default => 1,
         };
 
-        return $bytes > 0 ? $bytes : 8 * 1024 ** 2;
+        return $bytes;
     }
 
     /** Turns PHP's $_FILES layout (including name[] arrays) into UploadedFile objects. */
-    private static function normalizeFiles(array $files): array
+    private static function normalizeFiles(array $files, bool $selfParsed = false): array
     {
         $normalized = [];
 
         foreach ($files as $key => $file) {
             $value = is_array($file['name'])
-                ? self::normalizeNestedFiles($file['name'], $file['tmp_name'], $file['error'], $file['size'])
-                : self::makeFile($file['tmp_name'], $file['name'], $file['error'], $file['size']);
+                ? self::normalizeNestedFiles($file['name'], $file['tmp_name'], $file['error'], $file['size'], $selfParsed)
+                : self::makeFile($file['tmp_name'], $file['name'], $file['error'], $file['size'], $selfParsed);
 
             if ($value !== null && $value !== []) {
                 $normalized[$key] = $value;
@@ -297,14 +451,14 @@ final class Request
     }
 
     /** Handles inputs like docs[] or docs[0][file], where $_FILES nests each property separately. */
-    private static function normalizeNestedFiles(array $names, array $tmp, array $errors, array $sizes): array
+    private static function normalizeNestedFiles(array $names, array $tmp, array $errors, array $sizes, bool $selfParsed): array
     {
         $files = [];
 
         foreach ($names as $key => $name) {
             $value = is_array($name)
-                ? self::normalizeNestedFiles($name, $tmp[$key], $errors[$key], $sizes[$key])
-                : self::makeFile($tmp[$key], $name, $errors[$key], $sizes[$key]);
+                ? self::normalizeNestedFiles($name, $tmp[$key], $errors[$key], $sizes[$key], $selfParsed)
+                : self::makeFile($tmp[$key], $name, $errors[$key], $sizes[$key], $selfParsed);
 
             if ($value !== null && $value !== []) {
                 $files[$key] = $value;
@@ -314,10 +468,13 @@ final class Request
         return $files;
     }
 
-    /** Wraps one upload; returns null when the field was sent without a file. */
-    private static function makeFile(string $tmp, string $name, int $error, int $size): ?UploadedFile
+    /**
+     * Wraps one upload; returns null when the field was sent without a file.
+     * $selfParsed: written by parseMultipart(), so is_uploaded_file() can't vouch for it (we created it).
+     */
+    private static function makeFile(string $tmp, string $name, int $error, int $size, bool $selfParsed = false): ?UploadedFile
     {
-        return $error === UPLOAD_ERR_NO_FILE ? null : new UploadedFile($tmp, $name, $error, $size);
+        return $error === UPLOAD_ERR_NO_FILE ? null : new UploadedFile($tmp, $name, $error, $size, $selfParsed);
     }
 
     // ------------------------------------------------------------------ Input
@@ -704,9 +861,13 @@ final class Request
 
     // ------------------------------------------------------------------ Magic access
 
-    /** $request->email => route param, then body, then query, then file. */
+    /** $request->body etc. (read-only properties), otherwise $request->email => route param, then body, then query, then file. */
     public function __get(string $key): mixed
     {
+        if (in_array($key, self::READ_ONLY, true)) {
+            return $this->{$key};
+        }
+
         return $this->params[$key] ?? self::dataGet($this->all(), $key);
     }
 
@@ -714,6 +875,17 @@ final class Request
     public function __isset(string $key): bool
     {
         return $this->__get($key) !== null;
+    }
+
+    /** Request properties are read-only: use merge() or setAttribute() to change data. */
+    public function __set(string $key, mixed $value): void
+    {
+        throw new Error('Cannot modify read-only property ' . self::class . '::$' . $key);
+    }
+
+    public function __unset(string $key): void
+    {
+        throw new Error('Cannot unset read-only property ' . self::class . '::$' . $key);
     }
 
     // ------------------------------------------------------------------ Helpers

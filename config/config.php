@@ -31,7 +31,7 @@ return [
     'database' => [
         'driver'    => 'mysql',     // PDO driver; only MySQL/MariaDB is supported
         'host'      => '127.0.0.1', // use the host your provider gives on shared hosting
-        'port'      => 3306,
+        'port'      => 3305,
         'name'      => 'expressphp',
         'username'  => 'root',
         'password'  => 'root',
