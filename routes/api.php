@@ -30,4 +30,4 @@ $router->group('api/v1', function (Router $router) {
     }, [AuthMiddleware::class]);
 });
 
-$router->get('/view', [ExampleController::class, 'show']);
+$router->get('/view', [ExampleController::class, 'show'], [AuthMiddleware::class]);

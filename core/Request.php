@@ -220,7 +220,7 @@ final class Request
             }
         }
 
-        // Apache running PHP as CGI/FastCGI (e.g. MAMP) drops the Authorization header; the .htaccess
+        // Apache running PHP as CGI/FastCGI drops the Authorization header; the .htaccess
         // files copy it into an environment variable instead, and Apache adds one REDIRECT_ prefix per
         // internal rewrite (root .htaccess, then public/.htaccess => REDIRECT_REDIRECT_HTTP_AUTHORIZATION).
         if (!isset($headers['authorization'])) {
@@ -280,13 +280,19 @@ final class Request
                 }
             }
 
-            $max = self::maxBodySize();
+            // The fallback holds the whole body in memory (several copies while parsing), so it also
+            // stays well under memory_limit; the native parser streams files to disk instead.
+            $max = min(self::maxBodySize(), self::memoryBudget());
             $raw = (string) file_get_contents('php://input', false, null, 0, $max + 1);
             if (strlen($raw) > $max) {
                 throw new HttpException(413, 'Request body is too large.');
             }
 
             if (str_contains($type, 'application/x-www-form-urlencoded')) {
+                // parse_str() warns (and drops data) past max_input_vars; answer 400 like PHP 8.4 does.
+                if ($raw !== '' && substr_count($raw, '&') + 1 > self::maxInputVars()) {
+                    throw new HttpException(400, 'Malformed request body.');
+                }
                 parse_str($raw, $data);
                 return [$data, []];
             }
@@ -344,6 +350,9 @@ final class Request
 
             // A plain field: collected as a query string so parse_str() builds nested arrays like PHP does.
             if (!preg_match('/\bfilename="([^"]*)"/i', $disposition[1], $filename)) {
+                if (count($fields) >= self::maxInputVars()) {
+                    throw new HttpException(400, 'Malformed request body.');
+                }
                 $fields[] = rawurlencode($name) . '=' . rawurlencode($content);
                 continue;
             }
@@ -361,8 +370,13 @@ final class Request
                 if ($maxSize > 0 && $file['size'] > $maxSize) {
                     $file['error'] = UPLOAD_ERR_INI_SIZE;
                 } else {
-                    $tmp = tempnam(sys_get_temp_dir(), 'php');
-                    if ($tmp === false || file_put_contents($tmp, $content) === false) {
+                    // upload_tmp_dir first, like PHP: on shared hosting the system temp folder is often
+                    // outside open_basedir. @ because tempnam() warns before falling back to it.
+                    $tmp = @tempnam((string) ini_get('upload_tmp_dir') ?: sys_get_temp_dir(), 'php');
+                    if ($tmp === false) {
+                        $file['error'] = UPLOAD_ERR_NO_TMP_DIR;
+                    } elseif (@file_put_contents($tmp, $content) === false) {
+                        @unlink($tmp);
                         $file['error'] = UPLOAD_ERR_CANT_WRITE;
                     } else {
                         $file['tmp_name'] = $tmp;
@@ -394,6 +408,7 @@ final class Request
             return;
         }
         [, $base, $path] = $m;
+        $base = strtr($base, ' .', '__'); // PHP renames "my file" / "a.b" to my_file / a_b too
         preg_match_all('/\[([^\]]*)\]/', $path, $keys);
 
         if ($keys[1] === []) {
@@ -402,9 +417,17 @@ final class Request
         }
 
         foreach ($file as $property => $value) {
+            // A later name like "a[x]" after a plain "a" (or the other way round) replaces the
+            // earlier value instead of indexing into a string.
+            if (!is_array($files[$base][$property] ?? null)) {
+                $files[$base][$property] = [];
+            }
             $node = &$files[$base][$property];
             foreach ($keys[1] as $key) {
-                $node = &$node[$key === '' ? count((array) $node) : $key];
+                if (!is_array($node)) {
+                    $node = [];
+                }
+                $node = &$node[$key === '' ? count($node) : $key];
             }
             $node = $value;
             unset($node);
@@ -421,6 +444,20 @@ final class Request
         $bytes = self::iniBytes((string) ini_get('post_max_size'));
 
         return $bytes > 0 ? $bytes : 8 * 1024 ** 2;
+    }
+
+    /** Largest body the PHP < 8.4 form fallback reads into memory: a quarter of memory_limit (or unlimited). */
+    private static function memoryBudget(): int
+    {
+        $limit = self::iniBytes((string) ini_get('memory_limit'));
+        return $limit > 0 ? intdiv($limit, 4) : PHP_INT_MAX;
+    }
+
+    /** php.ini max_input_vars (default 1000): most form fields accepted in one request. */
+    private static function maxInputVars(): int
+    {
+        $vars = (int) ini_get('max_input_vars');
+        return $vars > 0 ? $vars : 1000;
     }
 
     /** php.ini size shorthand to bytes: '8M' => 8388608, '512K' => 524288, '0' => 0. */

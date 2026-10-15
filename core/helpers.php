@@ -33,7 +33,7 @@ if (!function_exists('dd')) {
     function dd(mixed ...$values): never
     {
         $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
-        $where  = str_replace(BASE_PATH . '/', '', $caller['file'] ?? '?') . ':' . ($caller['line'] ?? '?');
+        $where  = Core\Log::relative($caller['file'] ?? '?') . ':' . ($caller['line'] ?? '?');
 
         if (PHP_SAPI === 'cli') {
             echo "dd() at {$where}\n";

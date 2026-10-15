@@ -36,9 +36,10 @@ rate limiting, logging and a Laravel-style `dd()`, and borrows Laravel's naming 
 | | |
 |---|---|
 | PHP | **8.1 – 8.5** (tested on 8.1, 8.2, 8.3 and 8.4) |
-| PHP extensions | `pdo_mysql`, `fileinfo`, `json` (`mbstring` recommended) |
+| PHP extensions | `pdo_mysql`, `json` (`fileinfo` and `mbstring` recommended: without `fileinfo` every upload is treated as an unknown type and stored as `.bin`) |
 | MySQL | 8.0+ (or MariaDB 10.6+) |
-| Web server | Apache with `mod_rewrite` and `AllowOverride All`, or any server that sends requests to `public/index.php` |
+| OS | Linux, macOS or Windows |
+| Web server | Apache 2.2/2.4 or LiteSpeed with `mod_rewrite` (works as is, through the `.htaccess` files), or nginx, IIS or `php -S` pointed at `public/` (see [Web servers](#web-servers)) |
 
 ## Project structure
 
@@ -87,7 +88,7 @@ cli                          Command-line tool: migrations and generators
 .gitignore
 ```
 
-**Web access** (when the project folder itself is the web root):
+**Web access** on Apache/LiteSpeed (when the project folder itself is the web root):
 - **Every request goes to `public/index.php`** (an allowlist). Other files in the project are never served directly, so a stray `backup.sql` or `index.php~` returns the API's 404 instead of downloading.
 - **Also blocked (403):** the private folders `config/`, `core/`, `app/`, `routes/`, `database/`, `storage/` and `tests/`, the `cli` script, every `*.md` file and every dotfile.
 
@@ -104,11 +105,12 @@ cli                          Command-line tool: migrations and generators
    php cli migrate
    ```
 5. **Make `storage/` writable** by the web server, since logs, uploads and rate-limit counters are written there:
-   ```bash
-   sudo chown -R $USER:www-data storage && sudo chmod -R 2775 storage
-   # or, without sudo, if you own the folder:
-   setfacl -R -m u:www-data:rwX -m d:u:www-data:rwX -m d:u:$USER:rwX storage
-   ```
+   - **Linux VPS** (the web server user is `www-data` on Debian/Ubuntu, `apache` or `nginx` on RHEL-based systems):
+     ```bash
+     sudo chown -R $USER:www-data storage && sudo chmod -R 2775 storage
+     ```
+   - **Shared hosting (cPanel, Plesk, DirectAdmin):** usually nothing to do, because PHP runs as your own user. If logs don't appear, set `storage/` and its sub-folders to `755` (or `775`) in the file manager.
+   - **Local macOS / Windows stacks (XAMPP, WAMP, Laragon and similar):** usually nothing to do, because the web server runs as your user.
 6. **Check it works:**
    ```bash
    php tests/tests.php
@@ -124,6 +126,38 @@ The app detects which folder it is served from, so routes work anywhere without 
 | `htdocs/expressphp/` | `http://localhost/expressphp/api/v1/health/server` |
 | `public_html/` | `https://domain.com.pk/api/v1/health/server` |
 | Domain document root set to `public/` | `https://domain.com.pk/api/v1/health/server` |
+
+### Web servers
+
+| Server | What to do |
+|---|---|
+| **Apache / LiteSpeed** (most shared hosting, XAMPP, WAMP, cPanel, Plesk) | Nothing. The `.htaccess` files route requests and block private folders, whether the project folder or `public/` is the web root. Requires `mod_rewrite` and `AllowOverride All` (the default on shared hosting). |
+| **nginx** | `.htaccess` is ignored, so the document root **must** be `public/` (otherwise `storage/` and `config/` are exposed). Use the config below. |
+| **IIS** (Windows Server) | Set the site's physical path to `public/` and add a URL Rewrite rule that sends requests for missing files to `index.php`. |
+| **PHP built-in server** (local development only) | `php -S localhost:8000 -t public` |
+
+```nginx
+server {
+    listen 80;
+    server_name api.example.com;
+    root /var/www/expressphp/public;   # always public/, never the project folder
+    index index.php;
+
+    location / {
+        try_files $uri /index.php$is_args$args;
+    }
+
+    location = /index.php {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php/php-fpm.sock;   # or 127.0.0.1:9000
+    }
+
+    location ~ /\. { deny all; }
+}
+```
+
+nginx and PHP-FPM pass the `Authorization` header to PHP as is. On Apache with PHP as CGI/FastCGI, the `.htaccess` files forward it.
 
 ### Shared hosting / production checklist
 
@@ -704,6 +738,9 @@ The tests run **from the command line only**. Over the web, `tests/tests.php` is
 - **Rate limiting:** every IP gets a global limit.
 - **Error details:** with `debug` off, errors show only `Internal server error.`; details go to the log.
 - **Client IPs:** `X-Forwarded-For` is only trusted from proxies in `app.trusted_proxies` (single IPs or CIDR ranges).
+- **Response headers:** every response sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. JSON and downloads also send `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; sandbox`. HTML views send `X-Frame-Options: SAMEORIGIN` instead, so they can use inline CSS and JS. Set your own header in the controller to override a default.
+- **Stored file names:** `storeAs()` treats `\` as a path separator on every OS and rejects `..`, `:` (Windows alternate data streams), control characters, and trailing dots or spaces, so a name can't escape `storage/uploads/` on Linux or Windows.
+- **Same files everywhere:** `.gitattributes` keeps LF line endings, so a Windows checkout deployed to Linux doesn't break the `cli` shebang.
 
 ## Git
 

@@ -135,7 +135,7 @@ final class Response
         $this->html     = false;
 
         return $this->withHeaders($headers + [
-            'Content-Type'        => (new \finfo(FILEINFO_MIME_TYPE))->file($path) ?: 'application/octet-stream',
+            'Content-Type'        => UploadedFile::detectMime($path),
             'Content-Length'      => (string) filesize($path),
             'Content-Disposition' => sprintf('attachment; filename="%s"; filename*=UTF-8\'\'%s', $fallback, rawurlencode($name)),
         ]);
@@ -252,6 +252,20 @@ final class Response
                 header('Content-Type: application/json; charset=utf-8');
             }
             header('X-Content-Type-Options: nosniff');
+
+            // Safe defaults, unless the controller set its own. JSON and downloads never need to run
+            // scripts or be framed; HTML views may use inline CSS/JS, so they only refuse foreign frames.
+            $set = array_change_key_case($this->headers, CASE_LOWER);
+            if ($this->html) {
+                if (!isset($set['x-frame-options']) && !isset($set['content-security-policy'])) {
+                    header('X-Frame-Options: SAMEORIGIN');
+                }
+            } elseif (!isset($set['content-security-policy'])) {
+                header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; sandbox");
+            }
+            if (!isset($set['referrer-policy'])) {
+                header('Referrer-Policy: no-referrer');
+            }
 
             foreach ($this->headers as $name => $value) {
                 header("{$name}: {$value}");

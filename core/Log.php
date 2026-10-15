@@ -102,7 +102,7 @@ final class Log
     /** Today's log file path. */
     public static function file(): string
     {
-        return rtrim(Config::get('logging.path'), '/') . '/app-' . date('Y-m-d') . '.log';
+        return rtrim((string) Config::get('logging.path'), '/\\') . '/app-' . date('Y-m-d') . '.log';
     }
 
     /** Formats one line and appends it to today's file. Does nothing when logging is disabled. */
@@ -135,9 +135,13 @@ final class Log
         ) ?? '';
     }
 
-    /** Shortens absolute paths to project-relative ones (app/... instead of /var/www/...). */
-    private static function relative(string $path): string
+    /** Shortens absolute paths to project-relative ones (app/... instead of the full server path). */
+    public static function relative(string $path): string
     {
-        return str_starts_with($path, BASE_PATH . '/') ? substr($path, strlen(BASE_PATH) + 1) : $path;
+        // Compare with forward slashes so Windows paths (C:\...\app\x.php) are shortened too.
+        $path = str_replace('\\', '/', $path);
+        $base = str_replace('\\', '/', BASE_PATH) . '/';
+
+        return str_starts_with($path, $base) ? substr($path, strlen($base)) : $path;
     }
 }

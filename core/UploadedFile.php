@@ -52,10 +52,24 @@ final class UploadedFile
         return $this->test ? is_file($this->path) : is_uploaded_file($this->path);
     }
 
-    /** MIME type detected from the file contents (not the client's claim). */
+    /**
+     * MIME type detected from the file contents (not the client's claim). Without the fileinfo
+     * extension (disabled on some shared hosts) every file counts as application/octet-stream,
+     * so it is stored as ".bin" and fails image/mimes rules: safe, never guessed from the name.
+     */
     public function mimeType(): string
     {
-        return $this->mime ??= (new \finfo(FILEINFO_MIME_TYPE))->file($this->path) ?: 'application/octet-stream';
+        return $this->mime ??= self::detectMime($this->path);
+    }
+
+    /** MIME type of a file from its contents; application/octet-stream when unknown or undetectable. */
+    public static function detectMime(string $path): string
+    {
+        if (!class_exists(\finfo::class)) {
+            return 'application/octet-stream';
+        }
+
+        return @(new \finfo(FILEINFO_MIME_TYPE))->file($path) ?: 'application/octet-stream';
     }
 
     /**
@@ -99,13 +113,21 @@ final class UploadedFile
             throw new RuntimeException('Cannot store an invalid upload: ' . $this->errorMessage());
         }
 
+        // Backslashes are separators on Windows, so treat them as such everywhere: "..\x.php" must
+        // never survive basename() on Linux and then climb out of the folder on a Windows server.
         $directory = trim(str_replace('\\', '/', $directory), '/');
-        $name      = basename($name);
-        if (str_contains($directory, '..') || $name === '' || $name === '.' || $name === '..') {
+        $name      = basename(str_replace('\\', '/', $name));
+
+        // Windows also ignores trailing dots/spaces ("x.php." is x.php) and treats ":" as an
+        // alternate data stream ("x.jpg:y.php"); control characters are never valid.
+        $name = rtrim($name, '. ');
+        if ($name === '' || $name === '.' || $name === '..'
+            || preg_match('/[\x00-\x1F\x7F:]/', $name . $directory)
+            || str_contains($directory, '..')) {
             throw new RuntimeException('Invalid storage path.');
         }
 
-        $root   = rtrim(Config::get('filesystem.root'), '/');
+        $root   = rtrim((string) Config::get('filesystem.root'), '/\\');
         $target = $root . ($directory === '' ? '' : '/' . $directory);
 
         if (!is_dir($target) && !mkdir($target, 0775, true) && !is_dir($target)) {

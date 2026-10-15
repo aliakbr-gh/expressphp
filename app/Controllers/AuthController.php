@@ -47,6 +47,7 @@ final class AuthController
 
     public function me(Request $request, Response $response): Response
     {
+        dd($request->user());
         return $response->success($request->user(), 'Authenticated user.');
     }
 

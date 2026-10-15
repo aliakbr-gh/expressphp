@@ -1,0 +1,11 @@
+# Same line endings on every OS: a CRLF checkout on Windows would break the cli shebang
+# (#!/usr/bin/env php) and .htaccess files when the project is deployed to Linux.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary

@@ -2,7 +2,13 @@
 # these rules still protect this folder if that parent rule is ever loosened or removed.
 
 # Never serve anything from here directly.
-Require all denied
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+</IfModule>
 
 # Never execute scripts from here, whatever their name (mod_php only; ignored elsewhere).
 <IfModule mod_php.c>
@@ -18,5 +24,11 @@ Require all denied
     RemoveType .php .phtml .phar .php3 .php4 .php5 .php7 .php8 .pht .phps .shtml .cgi .pl .py
 </IfModule>
 <FilesMatch "\.(php\d?|phtml|phar|pht|phps|shtml|cgi|pl|py|html?|svg|js)$">
-    Require all denied
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
 </FilesMatch>

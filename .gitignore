@@ -7,18 +7,14 @@
 /storage/ratelimit/*
 !/storage/ratelimit/.gitkeep
 
-# macOS
+# Operating system files
 .DS_Store
 .AppleDouble
 .LSOverride
 ._*
-
-# Windows
 Thumbs.db
 ehthumbs.db
 desktop.ini
-
-# Linux
 *~
 .directory
 

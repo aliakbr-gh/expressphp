@@ -388,6 +388,18 @@ test('Validator reports Laravel-style errors', function () {
     assertTrue(isset($e['code']), 'regex');
 });
 
+test('Validator unique / exists reject arrays without querying', function () {
+    $v = Validator::make(['username' => ['a', 'b']], ['username' => 'unique:users,username']);
+    assertTrue($v->fails() && isset($v->errors()['username']), 'array passed unique');
+    $v = Validator::make(['id' => ['x' => 1]], ['id' => 'exists:users,id']);
+    assertTrue($v->fails(), 'array passed exists');
+});
+
+test('Validator string length counts UTF-8 characters', function () {
+    assertTrue(Validator::make(['n' => 'ÄÖÜ'], ['n' => 'max:3'])->passes(), 'multibyte counted as bytes');
+    assertTrue(Validator::make(['n' => 'ÄÖÜÄ'], ['n' => 'max:3'])->fails(), 'too long accepted');
+});
+
 test('Validator unique / exists hit the database', function () {
     Database::execute('CREATE TEMPORARY TABLE _users (id INT PRIMARY KEY, email VARCHAR(100))');
     Database::execute("INSERT INTO _users VALUES (1, 'taken@x.com')");
@@ -647,6 +659,77 @@ test('R1: method override keeps the form body of a real POST', function () {
     } finally {
         [$_SERVER, $_POST] = $saved;
     }
+});
+
+test('Multipart parser: name collisions and field limit give clean results, not 500s', function () {
+    $parse = (new ReflectionMethod(Request::class, 'parseMultipart'))->getClosure();
+    $part  = fn(string $name, string $file = '') => "--XB\r\nContent-Disposition: form-data; name=\"{$name}\""
+        . ($file !== '' ? "; filename=\"{$file}\"" : '') . "\r\n\r\nx\r\n";
+
+    // "a" as a plain file, then "a[x]" nested: the later one wins instead of a fatal string-offset error.
+    [, $files] = $parse($part('a', 'one.txt') . $part('a[x]', 'two.txt') . "--XB--", 'multipart/form-data; boundary=XB');
+    assertTrue($files['a']['name'] === ['x' => 'two.txt'], json_encode($files['a']));
+
+    // Path-like client file names keep only the base name; "my file" becomes my_file like PHP.
+    [, $files] = $parse($part('my file', '..\\..\\evil.php') . "--XB--", 'multipart/form-data; boundary=XB');
+    assertTrue(isset($files['my_file']) && $files['my_file']['name'] === 'evil.php', json_encode($files));
+
+    // max_input_vars can't be changed at runtime, so send one field more than the real limit.
+    $limit = (int) ini_get('max_input_vars') ?: 1000;
+    $body  = '';
+    for ($i = 0; $i <= $limit; $i++) {
+        $body .= $part("f{$i}");
+    }
+    try {
+        $parse($body . "--XB--", 'multipart/form-data; boundary=XB');
+        throw new RuntimeException('too many fields accepted');
+    } catch (Core\HttpException $e) {
+        assertTrue($e->status() === 400, 'status ' . $e->status());
+    }
+});
+
+test('UploadedFile::storeAs rejects Windows-style traversal and stream names', function () {
+    $root = sys_get_temp_dir() . '/expressphp-store-' . getmypid();
+    $original = Config::get('filesystem.root');
+    Config::set('filesystem.root', $root);
+    try {
+        foreach ([['', 'x.jpg:evil.php'], ['..\\up', 'a.txt'], ['ok', "a\0.txt"], ['', '...'], ['a/../b', 'x.txt']] as [$dir, $name]) {
+            $tmp = tempnam(sys_get_temp_dir(), 'up');
+            file_put_contents($tmp, 'x');
+            try {
+                (new UploadedFile($tmp, 'x.txt', UPLOAD_ERR_OK, 1, test: true))->storeAs($dir, $name);
+                throw new RuntimeException("accepted {$dir} / {$name}");
+            } catch (RuntimeException $e) {
+                assertTrue($e->getMessage() === 'Invalid storage path.', $e->getMessage());
+            } finally {
+                @unlink($tmp);
+            }
+        }
+
+        // Backslash paths and trailing dots are reduced to a safe name inside the folder.
+        $tmp = tempnam(sys_get_temp_dir(), 'up');
+        file_put_contents($tmp, 'x');
+        $path = (new UploadedFile($tmp, 'x.txt', UPLOAD_ERR_OK, 1, test: true))->storeAs('docs', '..\\..\\report.txt. ');
+        assertTrue($path === 'docs/report.txt' && is_file("{$root}/docs/report.txt"), $path);
+    } finally {
+        @unlink("{$root}/docs/report.txt");
+        @rmdir("{$root}/docs");
+        @rmdir($root);
+        Config::set('filesystem.root', $original);
+    }
+});
+
+test('Log::relative shortens Windows and Unix paths', function () {
+    $win = str_replace('/', '\\', BASE_PATH) . '\\app\\Controllers\\X.php';
+    assertTrue(Core\Log::relative($win) === 'app/Controllers/X.php', Core\Log::relative($win));
+    assertTrue(Core\Log::relative(BASE_PATH . '/core/Log.php') === 'core/Log.php', 'unix');
+});
+
+test('Response sends safe default security headers', function () {
+    $headers = fn(Response $r) => (fn() => $this->headers)->call($r);
+    assertTrue(!isset($headers((new Response())->success())['Content-Security-Policy']), 'defaults are not stored on the object');
+    $custom = (new Response())->header('Content-Security-Policy', "default-src 'self'")->success();
+    assertTrue($custom->headers['Content-Security-Policy'] === "default-src 'self'", 'custom CSP kept');
 });
 
 test('Multipart parser (PUT/PATCH/DELETE on PHP < 8.4) matches PHP\'s layout', function () {

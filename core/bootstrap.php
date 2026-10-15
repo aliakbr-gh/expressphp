@@ -58,7 +58,7 @@ set_error_handler(static function (int $severity, string $message, string $file,
     // Deprecations only warn about a future PHP version: log them instead of failing the request,
     // so upgrading PHP never turns working endpoints into 500s.
     if ($severity === E_DEPRECATED || $severity === E_USER_DEPRECATED) {
-        Core\Log::warning("Deprecated: {$message} at " . str_replace(BASE_PATH . '/', '', $file) . ":{$line}");
+        Core\Log::warning("Deprecated: {$message} at " . Core\Log::relative($file) . ":{$line}");
         return true;
     }
 
@@ -69,6 +69,6 @@ set_error_handler(static function (int $severity, string $message, string $file,
 register_shutdown_function(static function (): void {
     $error = error_get_last();
     if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-        Core\Log::error("Fatal: {$error['message']} at {$error['file']}:{$error['line']}");
+        Core\Log::error('Fatal: ' . $error['message'] . ' at ' . Core\Log::relative($error['file']) . ':' . $error['line']);
     }
 });

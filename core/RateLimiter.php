@@ -117,7 +117,7 @@ final class RateLimiter
     private static function path(string $key): string
     {
         $hash = sha1($key);
-        return rtrim((string) Config::get('rate_limit.path'), '/') . '/' . substr($hash, 0, 2) . '/' . $hash;
+        return rtrim((string) Config::get('rate_limit.path'), '/\\') . '/' . substr($hash, 0, 2) . '/' . $hash;
     }
 
     /**

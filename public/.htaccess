@@ -1,8 +1,15 @@
 # Used when the domain's document root points directly at /public (most secure setup).
+
+# No directory listings; no content negotiation (it can bypass the rewrite below).
+<IfModule mod_negotiation.c>
+    Options -MultiViews
+</IfModule>
+Options -Indexes
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Pass the Authorization header through to PHP; some Apache setups drop it (needed for Bearer tokens).
+    # Pass the Authorization header through to PHP; CGI/FastCGI setups drop it (needed for Bearer tokens).
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 

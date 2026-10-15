@@ -209,8 +209,9 @@ final class Validator
             'confirmed'  => $this->get($field . '_confirmation') === $value,
             'same'       => $this->get($p[0]) === $value,
             'different'  => $this->get($p[0]) !== $value,
-            'unique'     => $this->isUnique($value, $field, $p),
-            'exists'     => $this->exists($value, $field, $p),
+            // Only scalars reach SQL: an array or file would raise "Array to string conversion" (500).
+            'unique'     => is_scalar($value) && $this->isUnique($value, $field, $p),
+            'exists'     => is_scalar($value) && $this->exists($value, $field, $p),
             'file'       => $value instanceof UploadedFile && $value->isValid(),
             'image'      => $value instanceof UploadedFile && $value->isValid()
                             && in_array($value->mimeType(), ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'], true),
@@ -286,8 +287,18 @@ final class Validator
             'file'    => $value->size / 1024,
             'array'   => count($value),
             'numeric' => (float) $value,
-            default   => (float) (is_scalar($value) ? (@iconv_strlen((string) $value, 'UTF-8') ?: strlen((string) $value)) : 0),
+            default   => (float) (is_scalar($value) ? self::length((string) $value) : 0),
         };
+    }
+
+    /** Characters in a UTF-8 string, with whichever extension the server has (mbstring, iconv or neither). */
+    private static function length(string $value): int
+    {
+        if (preg_match('//u', $value) === 1) {
+            return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : (int) preg_match_all('/./su', $value);
+        }
+
+        return strlen($value); // invalid UTF-8: count bytes
     }
 
     /** null, empty string, whitespace-only string and empty array count as empty. */

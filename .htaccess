@@ -1,22 +1,35 @@
 # Used when the project folder itself is the web root (e.g. htdocs/expressphp or public_html).
 # Allowlist: every request goes to public/index.php. Files in the project are never served
 # directly, so new files (backups, dumps, zips, notes) can't be downloaded by accident.
+# Works on Apache 2.2/2.4 and LiteSpeed; nginx and IIS ignore this file (see README).
 
-# Hide directory listings when a folder has no index file.
+# No directory listings; no content negotiation (it can bypass the rewrite below).
+<IfModule mod_negotiation.c>
+    Options -MultiViews
+</IfModule>
 Options -Indexes
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Pass the Authorization header through to PHP; some Apache setups drop it (needed for Bearer tokens).
+    # Pass the Authorization header through to PHP; CGI/FastCGI setups drop it (needed for Bearer tokens).
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Every request, existing file or not, is handled by the front controller.
+    # Let the host's SSL tools (Let's Encrypt, cPanel AutoSSL) answer domain validation checks.
+    RewriteRule ^\.well-known/(acme-challenge|pki-validation)/ - [END]
+
+    # Every other request, existing file or not, is handled by the front controller.
     RewriteRule ^ public/index.php [QSA,END]
 </IfModule>
 
 # Second layer, in case mod_rewrite is off: never serve dotfiles, the CLI or docs.
 <FilesMatch "^(\.|cli$|.*\.md$)">
-    Require all denied
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
 </FilesMatch>
