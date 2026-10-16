@@ -48,8 +48,6 @@ final class AuthController
 
     public function me(Request $request, Response $response): Response
     {
-        $request->url();
-        dd($request->url());
         return $response->success($request->user(), 'Authenticated user.');
     }
 

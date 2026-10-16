@@ -17,7 +17,7 @@ final class AuthMiddleware implements MiddlewareInterface
     {
         $token = $request->bearerToken();
         if ($token === null) {
-            return $this->unauthorized('Invalid or expired token');
+            return $this->unauthorized('Unauthorized, Please login to access this resource');
         }
 
         try {
@@ -28,7 +28,7 @@ final class AuthMiddleware implements MiddlewareInterface
 
         $user = is_int($claims['sub'] ?? null) ? User::findByIdWithTokenVersion($claims['sub']) : null;
         if ($user === null || !is_int($claims['ver'] ?? null) || $claims['ver'] !== (int) $user['token_version']) {
-            return $this->unauthorized('Invalid or expired token');
+            return $this->unauthorized('Unauthorized, Please login to access this resource');
         }
 
         unset($user['token_version']);
