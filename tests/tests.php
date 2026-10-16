@@ -174,6 +174,37 @@ test('Router returns 404 and 405', function () {
     }
 });
 
+test('CORS: preflight answered with allow headers; other responses get the origin', function () {
+    $saved = Config::get('cors');
+    try {
+        $preflight = Request::create('OPTIONS', '/api/v1/auth/login', [], [
+            'origin' => 'https://app.test', 'access-control-request-method' => 'POST',
+        ]);
+        assertTrue(Core\CORS::isPreflight($preflight), 'preflight not detected');
+        assertTrue(!Core\CORS::isPreflight(Request::create('OPTIONS', '/x')), 'bare OPTIONS treated as preflight');
+
+        Config::set('cors', ['allowed_origins' => ['*'], 'allowed_methods' => ['POST'], 'allowed_headers' => ['Authorization'], 'max_age' => 600]);
+        $h = Core\CORS::preflight($preflight)->headers;
+        assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === '*', 'wildcard origin not sent');
+        assertTrue(($h['Access-Control-Allow-Headers'] ?? null) === 'Authorization', 'allow-headers missing');
+
+        Config::set('cors', ['allowed_origins' => ['https://app.test/'], 'exposed_headers' => ['Retry-After']]);
+        $get = Request::create('GET', '/x', [], ['origin' => 'https://APP.test']);
+        $h = Core\CORS::apply($get, new Response())->headers;
+        assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === 'https://APP.test', 'listed origin not echoed');
+        assertTrue(($h['Vary'] ?? null) === 'Origin' && ($h['Access-Control-Expose-Headers'] ?? null) === 'Retry-After', 'vary/expose missing');
+
+        $h = Core\CORS::apply(Request::create('GET', '/x', [], ['origin' => 'https://evil.test']), new Response())->headers;
+        assertTrue(!isset($h['Access-Control-Allow-Origin']), 'unlisted origin allowed');
+
+        Config::set('cors', ['allowed_origins' => ['*'], 'allow_credentials' => true]);
+        $h = Core\CORS::apply($get, new Response())->headers;
+        assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === 'https://APP.test' && ($h['Access-Control-Allow-Credentials'] ?? null) === 'true', 'credentials with * must echo origin');
+    } finally {
+        Config::set('cors', $saved);
+    }
+});
+
 // ---------------------------------------------------------------- Request
 
 /** A POST request with body, query, headers and cookies, used by the Request tests. */

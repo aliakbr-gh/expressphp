@@ -28,6 +28,19 @@ return [
         'trusted_proxies' => [],
     ],
 
+    'cors' => [
+        // Browser apps on these origins may call the API (scheme + host + port, no path), e.g.
+        // ['https://app.example.com', 'http://localhost:5173']. ['*'] allows any origin; that's fine
+        // while tokens travel in the Authorization header, but list your front-ends in production.
+        // [] turns CORS off: only pages served from the API's own domain can call it.
+        'allowed_origins'   => ['*'],
+        'allowed_methods'   => ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        'allowed_headers'   => ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+        'exposed_headers'   => ['Retry-After', 'Content-Disposition'], // response headers JS may read
+        'allow_credentials' => false, // true only if the front-end sends cookies (fetch credentials: 'include')
+        'max_age'           => 600,   // seconds the browser may reuse a preflight answer
+    ],
+
     'database' => [
         'driver'    => 'mysql',     // PDO driver; only MySQL/MariaDB is supported
         'host'      => '127.0.0.1', // use the host your provider gives on shared hosting

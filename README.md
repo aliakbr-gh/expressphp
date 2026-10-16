@@ -25,6 +25,7 @@ rate limiting, logging and a Laravel-style `dd()`, and borrows Laravel's naming 
 - [Migrations](#migrations)
 - [Generators](#generators)
 - [Rate limiting](#rate-limiting)
+- [CORS](#cors)
 - [Logging](#logging)
 - [Debugging with dd()](#debugging-with-dd)
 - [Tests](#tests)
@@ -184,6 +185,8 @@ All settings live in `config/config.php`. There is no `.env` file. Read any valu
 | `app.url` | Public base URL of the API |
 | `app.timezone` | PHP timezone, also used for log timestamps (keep it in sync with `database.timezone`) |
 | `app.trusted_proxies` | Proxies allowed to set `X-Forwarded-For` / `X-Forwarded-Proto`: single IPs, CIDR ranges (`'173.245.48.0/20'`, `'2400:cb00::/32'`), or `'*'` (trust all; only safe when the server is reachable through the proxy alone) |
+| `cors.allowed_origins` | Browser origins allowed to call the API (`['https://app.example.com']`), `['*']` for any, `[]` for none. See [CORS](#cors) |
+| `cors.*` | Allowed methods / headers, exposed headers, credentials, preflight cache time |
 | `database.*` | MySQL connection settings |
 | `jwt.secret` | Key that signs auth tokens. At least 32 characters, unique per environment. **Changing it logs everyone out.** |
 | `jwt.ttl` | Token lifetime in seconds (default `86400` = 24 hours) |
@@ -674,6 +677,17 @@ Over the limit, the client gets `429` with a `Retry-After` header (seconds):
 - **Storage layout:** counter files are spread over up to 256 sub-folders (`storage/ratelimit/3f/3f9a…`), and cleanup scans only one small sub-folder at a time.
 - **Behind a proxy** (e.g. Cloudflare), add its IPs or CIDR ranges to `app.trusted_proxies`. Otherwise every visitor shares the proxy's IP and limit. With `['*']`, the left-most address in `X-Forwarded-For` (the original client) is used, which can be faked if the server is also reachable directly.
 - **If the folder isn't writable,** requests are allowed rather than blocked, so a permissions problem never takes the API down.
+
+## CORS
+
+A front-end on another domain (or `localhost:5173` calling the live API) needs CORS. Before a cross-origin request with an `Authorization` header or a JSON body, the browser sends an `OPTIONS` preflight. `public/index.php` answers it with `204` and the `Access-Control-*` headers, and adds `Access-Control-Allow-Origin` to every other response, errors included, so the app can read `401`/`422`/`429` bodies.
+
+- **Origins:** `cors.allowed_origins` in `config/config.php`. The default `['*']` allows any origin. In production, list your front-ends exactly: scheme, host and port, no path (`'https://app.example.com'`).
+- **Cookies:** set `allow_credentials` to `true` only if the front-end sends cookies (`credentials: 'include'`). The origin is then echoed back instead of `*`, as browsers require.
+- **Preflights** aren't rate-limited; the real request that follows is.
+- Requests without an `Origin` header (curl, Postman, server-to-server) are unaffected.
+
+If the preflight still fails on shared hosting, open the URL's `OPTIONS` response in the browser's Network tab. A `405`/`403` HTML page that isn't this API's JSON means the server blocked `OPTIONS` before PHP (ModSecurity or a host rule); ask the host to allow `OPTIONS` for the domain.
 
 ## Logging
 
