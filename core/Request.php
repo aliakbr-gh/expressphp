@@ -247,8 +247,8 @@ final class Request
             // Read at most one byte more than allowed, so a missing or false Content-Length
             // (e.g. chunked upload) still can't push a huge body into memory.
             $max = self::maxBodySize();
-            $raw = file_get_contents('php://input', false, null, 0, $max + 1);
-            if ($raw === '' || $raw === false) {
+            $raw = self::readInput($max + 1);
+            if ($raw === '') {
                 return [[], []];
             }
             if (strlen($raw) > $max) {
@@ -283,7 +283,7 @@ final class Request
             // The fallback holds the whole body in memory (several copies while parsing), so it also
             // stays well under memory_limit; the native parser streams files to disk instead.
             $max = min(self::maxBodySize(), self::memoryBudget());
-            $raw = (string) file_get_contents('php://input', false, null, 0, $max + 1);
+            $raw = self::readInput($max + 1);
             if (strlen($raw) > $max) {
                 throw new HttpException(413, 'Request body is too large.');
             }
@@ -432,6 +432,31 @@ final class Request
             $node = $value;
             unset($node);
         }
+    }
+
+    /**
+     * Reads at most $limit bytes of the raw body. Read in chunks: on PHP 8.1/8.2,
+     * file_get_contents() with a max length allocates that whole length up front, so a 1G
+     * post_max_size made every JSON request ask for 1 GB and die with "Allowed memory size exhausted".
+     */
+    private static function readInput(int $limit): string
+    {
+        $stream = fopen('php://input', 'rb');
+        if ($stream === false) {
+            return '';
+        }
+
+        $raw = '';
+        while (!feof($stream) && strlen($raw) < $limit) {
+            $chunk = fread($stream, min(65536, $limit - strlen($raw)));
+            if ($chunk === false || $chunk === '') {
+                break;
+            }
+            $raw .= $chunk;
+        }
+        fclose($stream);
+
+        return $raw;
     }
 
     /**
