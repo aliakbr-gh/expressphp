@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\User;
-use Core\JWT;
+use Core\Jwt;
 use Core\Request;
 use Core\Response;
 
@@ -62,9 +62,9 @@ final class AuthController
     {
         return [
             'user'       => $user,
-            'token'      => JWT::encode(['sub' => $user['id'], 'ver' => $tokenVersion]),
+            'token'      => Jwt::encode(['sub' => $user['id'], 'ver' => $tokenVersion]),
             // 'token_type' => 'Bearer',
-            // 'expires_in' => JWT::ttl(),
+            // 'expires_in' => Jwt::ttl(),
         ];
     }
 }

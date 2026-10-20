@@ -9,12 +9,12 @@ use RuntimeException;
 /**
  * Minimal JSON Web Token (HS256) implementation.
  *
- *   $token  = JWT::encode(['sub' => $user['id']]);   // adds iat + exp from config
- *   $claims = JWT::decode($token);                 // throws JWTException if invalid or expired
+ *   $token  = Jwt::encode(['sub' => $user['id']]);   // adds iat + exp from config
+ *   $claims = Jwt::decode($token);                 // throws JwtException if invalid or expired
  *
  * Settings: jwt.secret and jwt.ttl in config/config.php.
  */
-final class JWT
+final class Jwt
 {
     private const ALGORITHM = 'HS256';
     private const LEEWAY    = 30; // seconds of allowed clock drift between servers
@@ -31,12 +31,12 @@ final class JWT
         return $segments . '.' . self::base64UrlEncode(self::sign($segments));
     }
 
-    /** Returns the payload claims, or throws JWTException. */
+    /** Returns the payload claims, or throws JwtException. */
     public static function decode(string $token): array
     {
         $parts = explode('.', $token);
         if (count($parts) !== 3) {
-            throw new JWTException('Invalid token.');
+            throw new JwtException('Invalid token.');
         }
 
         [$header64, $payload64, $signature64] = $parts;
@@ -44,24 +44,24 @@ final class JWT
         $header = json_decode(self::base64UrlDecode($header64), true);
         // Pin the algorithm: never trust the token's own "alg" (blocks "alg: none" attacks).
         if (!is_array($header) || ($header['alg'] ?? null) !== self::ALGORITHM) {
-            throw new JWTException('Invalid token.');
+            throw new JwtException('Invalid token.');
         }
 
         if (!hash_equals(self::sign("{$header64}.{$payload64}"), self::base64UrlDecode($signature64))) {
-            throw new JWTException('Invalid token.');
+            throw new JwtException('Invalid token.');
         }
 
         $payload = json_decode(self::base64UrlDecode($payload64), true);
         if (!is_array($payload)) {
-            throw new JWTException('Invalid token.');
+            throw new JwtException('Invalid token.');
         }
 
         $now = time();
         if (!isset($payload['exp']) || !is_int($payload['exp']) || $payload['exp'] < $now - self::LEEWAY) {
-            throw new JWTException('Token has expired.');
+            throw new JwtException('Token has expired.');
         }
         if (isset($payload['nbf']) && $payload['nbf'] > $now + self::LEEWAY) {
-            throw new JWTException('Invalid token.');
+            throw new JwtException('Invalid token.');
         }
 
         return $payload;

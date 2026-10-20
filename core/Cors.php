@@ -14,7 +14,7 @@ namespace Core;
  * Settings: cors in config/config.php. Requests without an Origin header (curl, Postman, servers)
  * are not affected.
  */
-final class CORS
+final class Cors
 {
     /** True for a browser's CORS preflight: OPTIONS with Origin and Access-Control-Request-Method. */
     public static function isPreflight(Request $request): bool

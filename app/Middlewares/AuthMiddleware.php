@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Middlewares;
 
 use App\Models\User;
-use Core\JWT;
-use Core\JWTException;
+use Core\Jwt;
+use Core\JwtException;
 use Core\MiddlewareInterface;
 use Core\Request;
 use Core\Response;
@@ -21,8 +21,8 @@ final class AuthMiddleware implements MiddlewareInterface
         }
 
         try {
-            $claims = JWT::decode($token);
-        } catch (JWTException $e) {
+            $claims = Jwt::decode($token);
+        } catch (JwtException $e) {
             return $this->unauthorized($e->getMessage());
         }
 

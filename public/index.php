@@ -9,7 +9,7 @@ declare(strict_types=1);
 require __DIR__ . '/../core/bootstrap.php';
 
 use Core\Config;
-use Core\CORS;
+use Core\Cors;
 use Core\Database;
 use Core\HttpException;
 use Core\Log;
@@ -24,10 +24,10 @@ use Core\ValidationException;
 $request = Request::fromGlobals();
 
 try {
-    if (CORS::isPreflight($request)) {
+    if (Cors::isPreflight($request)) {
         // A browser's OPTIONS check before a cross-origin request: answered here, not routed (which
         // would be a 405). Not rate-limited: it's cheap, and the real request after it is counted.
-        $response = CORS::preflight($request);
+        $response = Cors::preflight($request);
     } else {
         // Global limit for every request, per client IP (see rate_limit in config/config.php).
         // Checked before the body is read, so oversized or malformed bodies count too.
@@ -76,7 +76,7 @@ try {
 }
 
 // CORS headers on every answer, errors included, so browser apps can read 401/422/429 bodies too.
-$response = CORS::apply($request, $response);
+$response = Cors::apply($request, $response);
 
 try {
     $response->send();

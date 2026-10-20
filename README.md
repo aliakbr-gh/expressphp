@@ -71,8 +71,8 @@ core/                        Framework internals (fully commented)              
   HttpException.php          throw new HttpException(404, '...') from anywhere
   MiddlewareInterface.php    Contract every middleware implements
   UploadedFile.php           Uploaded file wrapper, store()
-  JWT.php                    JSON Web Tokens (HS256), our own implementation
-  JWTException.php           Invalid or expired token
+  Jwt.php                    JSON Web Tokens (HS256), our own implementation
+  JwtException.php           Invalid or expired token
   RateLimiter.php            Global per-IP request limit
   Log.php                    Daily log files
   Migrator.php               Database migrations

@@ -180,25 +180,25 @@ test('CORS: preflight answered with allow headers; other responses get the origi
         $preflight = Request::create('OPTIONS', '/api/v1/auth/login', [], [
             'origin' => 'https://app.test', 'access-control-request-method' => 'POST',
         ]);
-        assertTrue(Core\CORS::isPreflight($preflight), 'preflight not detected');
-        assertTrue(!Core\CORS::isPreflight(Request::create('OPTIONS', '/x')), 'bare OPTIONS treated as preflight');
+        assertTrue(Core\Cors::isPreflight($preflight), 'preflight not detected');
+        assertTrue(!Core\Cors::isPreflight(Request::create('OPTIONS', '/x')), 'bare OPTIONS treated as preflight');
 
         Config::set('cors', ['allowed_origins' => ['*'], 'allowed_methods' => ['POST'], 'allowed_headers' => ['Authorization'], 'max_age' => 600]);
-        $h = Core\CORS::preflight($preflight)->headers;
+        $h = Core\Cors::preflight($preflight)->headers;
         assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === '*', 'wildcard origin not sent');
         assertTrue(($h['Access-Control-Allow-Headers'] ?? null) === 'Authorization', 'allow-headers missing');
 
         Config::set('cors', ['allowed_origins' => ['https://app.test/'], 'exposed_headers' => ['Retry-After']]);
         $get = Request::create('GET', '/x', [], ['origin' => 'https://APP.test']);
-        $h = Core\CORS::apply($get, new Response())->headers;
+        $h = Core\Cors::apply($get, new Response())->headers;
         assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === 'https://APP.test', 'listed origin not echoed');
         assertTrue(($h['Vary'] ?? null) === 'Origin' && ($h['Access-Control-Expose-Headers'] ?? null) === 'Retry-After', 'vary/expose missing');
 
-        $h = Core\CORS::apply(Request::create('GET', '/x', [], ['origin' => 'https://evil.test']), new Response())->headers;
+        $h = Core\Cors::apply(Request::create('GET', '/x', [], ['origin' => 'https://evil.test']), new Response())->headers;
         assertTrue(!isset($h['Access-Control-Allow-Origin']), 'unlisted origin allowed');
 
         Config::set('cors', ['allowed_origins' => ['*'], 'allow_credentials' => true]);
-        $h = Core\CORS::apply($get, new Response())->headers;
+        $h = Core\Cors::apply($get, new Response())->headers;
         assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === 'https://APP.test' && ($h['Access-Control-Allow-Credentials'] ?? null) === 'true', 'credentials with * must echo origin');
     } finally {
         Config::set('cors', $saved);
@@ -1021,13 +1021,13 @@ test('Migrator make, migrate, status, rollback', function () {
 // ---------------------------------------------------------------- JWT
 
 test('JWT encode/decode round trip', function () {
-    $claims = Core\JWT::decode(Core\JWT::encode(['sub' => 7]));
-    assertTrue($claims['sub'] === 7 && $claims['exp'] - $claims['iat'] === Core\JWT::ttl(), json_encode($claims));
+    $claims = Core\Jwt::decode(Core\Jwt::encode(['sub' => 7]));
+    assertTrue($claims['sub'] === 7 && $claims['exp'] - $claims['iat'] === Core\Jwt::ttl(), json_encode($claims));
 });
 
 test('JWT rejects tampered, alg=none, malformed and expired tokens', function () {
     $b64 = fn($s) => rtrim(strtr(base64_encode($s), '+/', '-_'), '=');
-    [$h, $p, $sig] = explode('.', Core\JWT::encode(['sub' => 1]));
+    [$h, $p, $sig] = explode('.', Core\Jwt::encode(['sub' => 1]));
 
     $cases = [
         'tampered payload' => [$h . '.' . $b64('{"sub":2,"exp":9999999999}') . '.' . $sig, 'Invalid token.'],
@@ -1035,16 +1035,16 @@ test('JWT rejects tampered, alg=none, malformed and expired tokens', function ()
         'malformed'        => ['not-a-jwt', 'Invalid token.'],
     ];
 
-    $ttl = Core\JWT::ttl();
+    $ttl = Core\Jwt::ttl();
     Config::set('jwt.ttl', -100);
-    $cases['expired'] = [Core\JWT::encode(['sub' => 1]), 'Token has expired.'];
+    $cases['expired'] = [Core\Jwt::encode(['sub' => 1]), 'Token has expired.'];
     Config::set('jwt.ttl', $ttl);
 
     foreach ($cases as $name => [$token, $expected]) {
         try {
-            Core\JWT::decode($token);
+            Core\Jwt::decode($token);
             throw new RuntimeException("{$name} accepted");
-        } catch (Core\JWTException $e) {
+        } catch (Core\JwtException $e) {
             assertTrue($e->getMessage() === $expected, "{$name}: {$e->getMessage()}");
         }
     }
@@ -1118,7 +1118,7 @@ test('Auth register -> login -> me flow', function () {
 
         // A validly signed token without the "ver" claim (issued before token versioning) is rejected.
         $id = $again->body['data']['user']['id'];
-        $legacy = Core\JWT::encode(['sub' => $id]);
+        $legacy = Core\Jwt::encode(['sub' => $id]);
         assertTrue($call('GET', '/api/v1/auth/me', [], ['Authorization' => "Bearer {$legacy}"])->status === 401, 'token without ver accepted');
     } finally {
         Database::execute("DELETE FROM users WHERE username = 'zz_flow_test'");
