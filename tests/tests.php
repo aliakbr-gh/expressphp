@@ -17,15 +17,15 @@ if (PHP_SAPI !== 'cli') {
 
 require __DIR__ . '/../core/bootstrap.php';
 
-use Core\Config;
-use Core\Database;
-use Core\Request;
-use Core\Response;
-use Core\Router;
-use Core\UploadedFile;
-use Core\ValidationException;
-use Core\Validator;
-use Core\View;
+use Core\Database\Database;
+use Core\Http\Request;
+use Core\Http\Response;
+use Core\Http\UploadedFile;
+use Core\Routing\Router;
+use Core\Support\Config;
+use Core\Support\View;
+use Core\Validation\ValidationException;
+use Core\Validation\Validator;
 
 $results = [];
 
@@ -168,7 +168,7 @@ test('Router returns 404 and 405', function () {
         try {
             makeRouter()->dispatch(makeRequest($method, $uri));
             throw new RuntimeException("{$method} {$uri} did not throw");
-        } catch (Core\HttpException $e) {
+        } catch (Core\Http\HttpException $e) {
             assertTrue($e->status() === $expected, "{$method} {$uri} gave {$e->status()}");
         }
     }
@@ -180,25 +180,25 @@ test('CORS: preflight answered with allow headers; other responses get the origi
         $preflight = Request::create('OPTIONS', '/api/v1/auth/login', [], [
             'origin' => 'https://app.test', 'access-control-request-method' => 'POST',
         ]);
-        assertTrue(Core\Cors::isPreflight($preflight), 'preflight not detected');
-        assertTrue(!Core\Cors::isPreflight(Request::create('OPTIONS', '/x')), 'bare OPTIONS treated as preflight');
+        assertTrue(Core\Http\Cors::isPreflight($preflight), 'preflight not detected');
+        assertTrue(!Core\Http\Cors::isPreflight(Request::create('OPTIONS', '/x')), 'bare OPTIONS treated as preflight');
 
         Config::set('cors', ['allowed_origins' => ['*'], 'allowed_methods' => ['POST'], 'allowed_headers' => ['Authorization'], 'max_age' => 600]);
-        $h = Core\Cors::preflight($preflight)->headers;
+        $h = Core\Http\Cors::preflight($preflight)->headers;
         assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === '*', 'wildcard origin not sent');
         assertTrue(($h['Access-Control-Allow-Headers'] ?? null) === 'Authorization', 'allow-headers missing');
 
         Config::set('cors', ['allowed_origins' => ['https://app.test/'], 'exposed_headers' => ['Retry-After']]);
         $get = Request::create('GET', '/x', [], ['origin' => 'https://APP.test']);
-        $h = Core\Cors::apply($get, new Response())->headers;
+        $h = Core\Http\Cors::apply($get, new Response())->headers;
         assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === 'https://APP.test', 'listed origin not echoed');
         assertTrue(($h['Vary'] ?? null) === 'Origin' && ($h['Access-Control-Expose-Headers'] ?? null) === 'Retry-After', 'vary/expose missing');
 
-        $h = Core\Cors::apply(Request::create('GET', '/x', [], ['origin' => 'https://evil.test']), new Response())->headers;
+        $h = Core\Http\Cors::apply(Request::create('GET', '/x', [], ['origin' => 'https://evil.test']), new Response())->headers;
         assertTrue(!isset($h['Access-Control-Allow-Origin']), 'unlisted origin allowed');
 
         Config::set('cors', ['allowed_origins' => ['*'], 'allow_credentials' => true]);
-        $h = Core\Cors::apply($get, new Response())->headers;
+        $h = Core\Http\Cors::apply($get, new Response())->headers;
         assertTrue(($h['Access-Control-Allow-Origin'] ?? null) === 'https://APP.test' && ($h['Access-Control-Allow-Credentials'] ?? null) === 'true', 'credentials with * must echo origin');
     } finally {
         Config::set('cors', $saved);
@@ -305,7 +305,7 @@ test('Request file upload and store', function () {
     assertTrue($r->file('avatar')->extension() === 'png', 'extension');
 
     $path = $r->file('avatar')->store('tests');
-    $full = Core\Config::get('filesystem.root') . '/' . $path;
+    $full = Core\Support\Config::get('filesystem.root') . '/' . $path;
     assertTrue(is_file($full), 'not stored');
     unlink($full);
     @rmdir(dirname($full));
@@ -348,7 +348,7 @@ test('dd() dumps only when app.debug is true', function () {
     $php  = escapeshellarg(PHP_BINARY);
     $boot = var_export(BASE_PATH . '/core/bootstrap.php', true);
     $run  = function (bool $debug) use ($php, $boot): array {
-        $code = "require {$boot}; Core\\Config::set('app.debug', " . var_export($debug, true) . "); Core\\Config::set('logging.enabled', false); dd('SECRET_VALUE');";
+        $code = "require {$boot}; Core\\Support\\Config::set('app.debug', " . var_export($debug, true) . "); Core\\Support\\Config::set('logging.enabled', false); dd('SECRET_VALUE');";
         exec("{$php} -r " . escapeshellarg($code) . ' 2>&1', $out, $status);
         return [implode("\n", $out), $status];
     };
@@ -361,9 +361,9 @@ test('dd() dumps only when app.debug is true', function () {
 });
 
 test('Class and view names must match the file case on every OS', function () {
-    assertTrue(Core\Path::isFileExact(BASE_PATH . '/core', 'Request.php'), 'exact name');
-    assertTrue(!Core\Path::isFileExact(BASE_PATH . '/core', 'request.php'), 'wrong file case accepted');
-    assertTrue(!Core\Path::isFileExact(BASE_PATH, 'Core/Request.php'), 'wrong folder case accepted');
+    assertTrue(Core\Support\Path::isFileExact(BASE_PATH . '/core', 'Http/Request.php'), 'exact name');
+    assertTrue(!Core\Support\Path::isFileExact(BASE_PATH . '/core', 'Http/request.php'), 'wrong file case accepted');
+    assertTrue(!Core\Support\Path::isFileExact(BASE_PATH . '/core', 'http/Request.php'), 'wrong folder case accepted');
     assertTrue(!class_exists('App\\Controllers\\examplecontroller'), 'class loaded with wrong case');
     assertTrue(View::exists('example') && !View::exists('Example'), 'view loaded with wrong case');
 });
@@ -532,9 +532,9 @@ test('Log writes daily file and respects enabled flag', function () {
 
     try {
         Config::set('logging.enabled', true);
-        Core\Log::info('User registered', ['id' => 5]);
-        Core\Log::exception(new LogicException('Boom'));
-        Core\Log::request(Request::create('GET', '/api/v1/x'), 404, microtime(true));
+        Core\Support\Log::info('User registered', ['id' => 5]);
+        Core\Support\Log::exception(new LogicException('Boom'));
+        Core\Support\Log::request(Request::create('GET', '/api/v1/x'), 404, microtime(true));
 
         $file = $dir . '/app-' . date('Y-m-d') . '.log';
         $lines = file($file, FILE_IGNORE_NEW_LINES);
@@ -544,7 +544,7 @@ test('Log writes daily file and respects enabled flag', function () {
         assertTrue(preg_match('/WARNING GET \/api\/v1\/x 404 [\d.]+ms 127\.0\.0\.1$/', $lines[2]) === 1, $lines[2]);
 
         Config::set('logging.enabled', false);
-        Core\Log::error('should not be written');
+        Core\Support\Log::error('should not be written');
         assertTrue(count(file($file)) === 3, 'wrote while disabled');
     } finally {
         array_map('unlink', glob("{$dir}/*"));
@@ -565,14 +565,14 @@ test('RateLimiter allows max_requests then blocks, per key', function () {
     try {
         $results = [];
         for ($i = 0; $i < 4; $i++) {
-            $results[] = Core\RateLimiter::hit('1.1.1.1');
+            $results[] = Core\Support\RateLimiter::hit('1.1.1.1');
         }
         assertTrue($results[0] === 0 && $results[1] === 0 && $results[2] === 0, 'first 3 should pass: ' . json_encode($results));
         assertTrue($results[3] > 0 && $results[3] <= 60, '4th should wait 1-60s: ' . $results[3]);
-        assertTrue(Core\RateLimiter::hit('2.2.2.2') === 0, 'other IP blocked');
+        assertTrue(Core\Support\RateLimiter::hit('2.2.2.2') === 0, 'other IP blocked');
 
         Config::set('rate_limit.enabled', false);
-        assertTrue(Core\RateLimiter::hit('1.1.1.1') === 0, 'disabled still blocks');
+        assertTrue(Core\Support\RateLimiter::hit('1.1.1.1') === 0, 'disabled still blocks');
     } finally {
         array_map('unlink', glob("{$dir}/*/*"));
         array_map('rmdir', glob("{$dir}/*", GLOB_ONLYDIR));
@@ -602,8 +602,8 @@ test('M2: control characters in log messages cannot create new lines', function 
     Config::set('logging.path', $dir);
     Config::set('logging.enabled', true);
     try {
-        Core\Log::warning("GET /x\n[2026-01-01 00:00:00] ERROR forged\r\x00end");
-        $lines = file(Core\Log::file(), FILE_IGNORE_NEW_LINES);
+        Core\Support\Log::warning("GET /x\n[2026-01-01 00:00:00] ERROR forged\r\x00end");
+        $lines = file(Core\Support\Log::file(), FILE_IGNORE_NEW_LINES);
         assertTrue(count($lines) === 1, 'expected 1 line, got ' . count($lines));
         assertTrue(str_contains($lines[0], 'GET /x\x0A[2026-01-01 00:00:00] ERROR forged\x0D\x00end'), $lines[0]);
     } finally {
@@ -650,15 +650,15 @@ test('M4: wildcard trusted proxy returns the real client IP', function () {
 });
 
 test('M5/N3: IPv6 keys are canonical; /64 network key groups addresses', function () {
-    assertTrue(Core\RateLimiter::normalizeKey('2001:DB8:0:0::1') === '2001:db8::1', 'not canonical');
-    assertTrue(Core\RateLimiter::normalizeKey('::ffff:192.0.2.7') === '192.0.2.7', 'IPv4-mapped not unwrapped');
-    assertTrue(Core\RateLimiter::normalizeKey('192.0.2.7') === '192.0.2.7', 'IPv4 changed');
+    assertTrue(Core\Support\RateLimiter::normalizeKey('2001:DB8:0:0::1') === '2001:db8::1', 'not canonical');
+    assertTrue(Core\Support\RateLimiter::normalizeKey('::ffff:192.0.2.7') === '192.0.2.7', 'IPv4-mapped not unwrapped');
+    assertTrue(Core\Support\RateLimiter::normalizeKey('192.0.2.7') === '192.0.2.7', 'IPv4 changed');
 
-    $a = Core\RateLimiter::networkKey('2001:db8:abcd:12::1');
-    $b = Core\RateLimiter::networkKey('2001:db8:abcd:12:ffff:ffff:ffff:ffff');
-    $c = Core\RateLimiter::networkKey('2001:db8:abcd:13::1');
+    $a = Core\Support\RateLimiter::networkKey('2001:db8:abcd:12::1');
+    $b = Core\Support\RateLimiter::networkKey('2001:db8:abcd:12:ffff:ffff:ffff:ffff');
+    $c = Core\Support\RateLimiter::networkKey('2001:db8:abcd:13::1');
     assertTrue($a === $b && $a !== $c, "network keys: {$a} {$b} {$c}");
-    assertTrue(Core\RateLimiter::networkKey('192.0.2.7') === null, 'IPv4 got a network key');
+    assertTrue(Core\Support\RateLimiter::networkKey('192.0.2.7') === null, 'IPv4 got a network key');
 });
 
 test('N3: IPv6 users sharing a /64 have separate limits, but the /64 has a shared cap', function () {
@@ -667,15 +667,15 @@ test('N3: IPv6 users sharing a /64 have separate limits, but the /64 has a share
     Config::set('rate_limit', ['enabled' => true, 'max_requests' => 2, 'per_seconds' => 60, 'path' => $dir]);
     try {
         // Address A uses up its own limit (2); address B in the same /64 is still allowed.
-        $a = [Core\RateLimiter::hit('2001:db8::a'), Core\RateLimiter::hit('2001:db8::a'), Core\RateLimiter::hit('2001:db8::a')];
+        $a = [Core\Support\RateLimiter::hit('2001:db8::a'), Core\Support\RateLimiter::hit('2001:db8::a'), Core\Support\RateLimiter::hit('2001:db8::a')];
         assertTrue($a[0] === 0 && $a[1] === 0 && $a[2] > 0, 'address A: ' . json_encode($a));
-        assertTrue(Core\RateLimiter::hit('2001:db8::b') === 0, 'address B blocked by A');
+        assertTrue(Core\Support\RateLimiter::hit('2001:db8::b') === 0, 'address B blocked by A');
 
         // Rotating addresses: the /64 cap is 2 x 10 = 20 allowed requests in total. 3 used so far
         // (A's blocked 3rd request doesn't count), so 17 of the next 20 addresses get through.
         $blocked = 0;
         for ($i = 1; $i <= 20; $i++) {
-            $blocked += Core\RateLimiter::hit('2001:db8::' . dechex(0x100 + $i)) > 0 ? 1 : 0;
+            $blocked += Core\Support\RateLimiter::hit('2001:db8::' . dechex(0x100 + $i)) > 0 ? 1 : 0;
         }
         assertTrue($blocked === 3, "expected the last 3 rotated addresses blocked, got {$blocked}");
     } finally {
@@ -730,10 +730,10 @@ test('R2: an IPv6 address that is already blocked does not use up its /64 budget
     Config::set('rate_limit', ['enabled' => true, 'max_requests' => 2, 'per_seconds' => 60, 'path' => $dir]);
     try {
         for ($i = 0; $i < 25; $i++) {
-            Core\RateLimiter::hit('2001:db8::bad');
+            Core\Support\RateLimiter::hit('2001:db8::bad');
         }
-        assertTrue(Core\RateLimiter::hit('2001:db8::bad') > 0, 'noisy address not blocked');
-        assertTrue(Core\RateLimiter::hit('2001:db8::beef') === 0, 'neighbour blocked by a noisy address');
+        assertTrue(Core\Support\RateLimiter::hit('2001:db8::bad') > 0, 'noisy address not blocked');
+        assertTrue(Core\Support\RateLimiter::hit('2001:db8::beef') === 0, 'neighbour blocked by a noisy address');
     } finally {
         array_map('unlink', glob("{$dir}/*/*"));
         array_map('rmdir', glob("{$dir}/*", GLOB_ONLYDIR));
@@ -782,7 +782,7 @@ test('Multipart parser: name collisions and field limit give clean results, not 
     try {
         $parse($body . "--XB--", 'multipart/form-data; boundary=XB');
         throw new RuntimeException('too many fields accepted');
-    } catch (Core\HttpException $e) {
+    } catch (Core\Http\HttpException $e) {
         assertTrue($e->status() === 400, 'status ' . $e->status());
     }
 });
@@ -820,8 +820,8 @@ test('UploadedFile::storeAs rejects Windows-style traversal and stream names', f
 
 test('Log::relative shortens Windows and Unix paths', function () {
     $win = str_replace('/', '\\', BASE_PATH) . '\\app\\Controllers\\X.php';
-    assertTrue(Core\Log::relative($win) === 'app/Controllers/X.php', Core\Log::relative($win));
-    assertTrue(Core\Log::relative(BASE_PATH . '/core/Log.php') === 'core/Log.php', 'unix');
+    assertTrue(Core\Support\Log::relative($win) === 'app/Controllers/X.php', Core\Support\Log::relative($win));
+    assertTrue(Core\Support\Log::relative(BASE_PATH . '/core/Support/Log.php') === 'core/Support/Log.php', 'unix');
 });
 
 test('Response sends safe default security headers', function () {
@@ -851,7 +851,7 @@ test('Multipart parser (PUT/PATCH/DELETE on PHP < 8.4) matches PHP\'s layout', f
     try {
         $parse("--XB\r\nno headers", 'multipart/form-data; boundary=XB');
         throw new RuntimeException('malformed body accepted');
-    } catch (Core\HttpException $e) {
+    } catch (Core\Http\HttpException $e) {
         assertTrue($e->status() === 400, 'status ' . $e->status());
     }
 });
@@ -870,7 +870,7 @@ test('R4: fromGlobals() never reads the body; readBody() does', function () {
         try {
             $r->readBody();
             throw new RuntimeException('oversized body accepted');
-        } catch (Core\HttpException $e) {
+        } catch (Core\Http\HttpException $e) {
             assertTrue($e->status() === 413, 'status ' . $e->status());
         }
     } finally {
@@ -890,9 +890,9 @@ test('R3: logged duplicate-key errors never contain the duplicated value', funct
         try {
             Database::execute("INSERT INTO zz_dupe3 VALUES (2, 'sk_live_TOPSECRET')");
         } catch (PDOException $e) {
-            Core\Log::exception($e);
+            Core\Support\Log::exception($e);
         }
-        $log = file_get_contents(Core\Log::file());
+        $log = file_get_contents(Core\Support\Log::file());
         assertTrue(!str_contains($log, 'TOPSECRET'), 'value leaked: ' . $log);
         assertTrue(str_contains($log, "Duplicate entry '***' for key 'zz_dupe3.internal_secret_idx'"), $log);
     } finally {
@@ -919,7 +919,7 @@ test('S1: chunked multipart POST that PHP could not parse gets 413', function ()
         try {
             Request::capture();
             throw new RuntimeException('empty chunked multipart accepted');
-        } catch (Core\HttpException $e) {
+        } catch (Core\Http\HttpException $e) {
             assertTrue($e->status() === 413, 'status ' . $e->status());
         }
 
@@ -939,7 +939,7 @@ test('S2: data values in database errors are masked in logs', function () {
         "Data too long for column 's' at row 1" => "Data too long for column 's' at row 1",
     ];
     foreach ($cases as $in => $expected) {
-        $out = Core\Log::maskDataValues($in);
+        $out = Core\Support\Log::maskDataValues($in);
         assertTrue($out === $expected, "{$in} => {$out}");
     }
 
@@ -948,7 +948,7 @@ test('S2: data values in database errors are masked in logs', function () {
         Database::execute('INSERT INTO zz_mask (n) VALUES (?)', ['TOPSECRET']);
         throw new RuntimeException('bad integer accepted');
     } catch (PDOException $e) {
-        assertTrue(!str_contains(Core\Log::maskDataValues($e->getMessage()), 'TOPSECRET'), $e->getMessage());
+        assertTrue(!str_contains(Core\Support\Log::maskDataValues($e->getMessage()), 'TOPSECRET'), $e->getMessage());
     } finally {
         Database::execute('DROP TEMPORARY TABLE IF EXISTS zz_mask');
     }
@@ -996,7 +996,7 @@ test('N2: duplicates on non-convention indexes are not mapped to a column', func
 
 test('Migrator make, migrate, status, rollback', function () {
     $dir      = sys_get_temp_dir() . '/expressphp-mig-test-' . getmypid();
-    $migrator = new Core\Migrator($dir, '_test_migrations', fn() => null);
+    $migrator = new Core\Database\Migrator($dir, '_test_migrations', fn() => null);
 
     try {
         $file = $migrator->make('create_zz_mig_test_table');
@@ -1021,13 +1021,13 @@ test('Migrator make, migrate, status, rollback', function () {
 // ---------------------------------------------------------------- JWT
 
 test('JWT encode/decode round trip', function () {
-    $claims = Core\Jwt::decode(Core\Jwt::encode(['sub' => 7]));
-    assertTrue($claims['sub'] === 7 && $claims['exp'] - $claims['iat'] === Core\Jwt::ttl(), json_encode($claims));
+    $claims = Core\Auth\Jwt::decode(Core\Auth\Jwt::encode(['sub' => 7]));
+    assertTrue($claims['sub'] === 7 && $claims['exp'] - $claims['iat'] === Core\Auth\Jwt::ttl(), json_encode($claims));
 });
 
 test('JWT rejects tampered, alg=none, malformed and expired tokens', function () {
     $b64 = fn($s) => rtrim(strtr(base64_encode($s), '+/', '-_'), '=');
-    [$h, $p, $sig] = explode('.', Core\Jwt::encode(['sub' => 1]));
+    [$h, $p, $sig] = explode('.', Core\Auth\Jwt::encode(['sub' => 1]));
 
     $cases = [
         'tampered payload' => [$h . '.' . $b64('{"sub":2,"exp":9999999999}') . '.' . $sig, 'Invalid token.'],
@@ -1035,16 +1035,16 @@ test('JWT rejects tampered, alg=none, malformed and expired tokens', function ()
         'malformed'        => ['not-a-jwt', 'Invalid token.'],
     ];
 
-    $ttl = Core\Jwt::ttl();
+    $ttl = Core\Auth\Jwt::ttl();
     Config::set('jwt.ttl', -100);
-    $cases['expired'] = [Core\Jwt::encode(['sub' => 1]), 'Token has expired.'];
+    $cases['expired'] = [Core\Auth\Jwt::encode(['sub' => 1]), 'Token has expired.'];
     Config::set('jwt.ttl', $ttl);
 
     foreach ($cases as $name => [$token, $expected]) {
         try {
-            Core\Jwt::decode($token);
+            Core\Auth\Jwt::decode($token);
             throw new RuntimeException("{$name} accepted");
-        } catch (Core\JwtException $e) {
+        } catch (Core\Auth\JwtException $e) {
             assertTrue($e->getMessage() === $expected, "{$name}: {$e->getMessage()}");
         }
     }
@@ -1072,7 +1072,7 @@ test('Auth register -> login -> me flow', function () {
     $call = function (string $method, string $uri, array $body = [], array $headers = []) use ($router) {
         try {
             return $router->dispatch(Request::create($method, $uri, $body, $headers));
-        } catch (Core\HttpException $e) {
+        } catch (Core\Http\HttpException $e) {
             return (new Response())->error($e->getMessage(), $e->status(), $e->errors());
         }
     };
@@ -1118,7 +1118,7 @@ test('Auth register -> login -> me flow', function () {
 
         // A validly signed token without the "ver" claim (issued before token versioning) is rejected.
         $id = $again->body['data']['user']['id'];
-        $legacy = Core\Jwt::encode(['sub' => $id]);
+        $legacy = Core\Auth\Jwt::encode(['sub' => $id]);
         assertTrue($call('GET', '/api/v1/auth/me', [], ['Authorization' => "Bearer {$legacy}"])->status === 401, 'token without ver accepted');
     } finally {
         Database::execute("DELETE FROM users WHERE username = 'zz_flow_test'");

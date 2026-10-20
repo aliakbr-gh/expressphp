@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Core\Database;
+use Core\Database\Database;
 
 /**
  * Token versioning: every JWT carries the user's token_version ("ver" claim), and AuthMiddleware

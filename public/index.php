@@ -8,16 +8,16 @@ declare(strict_types=1);
 
 require __DIR__ . '/../core/bootstrap.php';
 
-use Core\Config;
-use Core\Cors;
-use Core\Database;
-use Core\HttpException;
-use Core\Log;
-use Core\RateLimiter;
-use Core\Request;
-use Core\Response;
-use Core\Router;
-use Core\ValidationException;
+use Core\Database\Database;
+use Core\Http\Cors;
+use Core\Http\HttpException;
+use Core\Http\Request;
+use Core\Http\Response;
+use Core\Routing\Router;
+use Core\Support\Config;
+use Core\Support\Log;
+use Core\Support\RateLimiter;
+use Core\Validation\ValidationException;
 
 // Headers, path and client IP only; never throws, so every request below can be rate-limited
 // and logged, including ones whose body later turns out to be malformed (400) or too large (413).

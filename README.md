@@ -59,24 +59,31 @@ app/                         Your application code (no comments by convention)  
     example.php              HTML template rendered by ExampleController
 core/                        Framework internals (fully commented)              namespace Core\
   bootstrap.php              Startup: autoloader, config, error handling, helpers
-  Config.php                 Config::get('database.host')
-  Database.php               PDO connection + query helpers
-  Router.php                 Routes, groups, middleware
-  Request.php                $request->body, ->query, ->params, validate() ...
-  Response.php               $response->success(), ->error(), ->view() ...
-  View.php                   Renders plain-PHP templates from app/Views/
-  Path.php                   Case-exact file checks (same behaviour on macOS, Windows, Linux)
-  Validator.php              Laravel-style validation rules
-  ValidationException.php    Turns failed validation into a 422 response
-  HttpException.php          throw new HttpException(404, '...') from anywhere
-  MiddlewareInterface.php    Contract every middleware implements
-  UploadedFile.php           Uploaded file wrapper, store()
-  Jwt.php                    JSON Web Tokens (HS256), our own implementation
-  JwtException.php           Invalid or expired token
-  RateLimiter.php            Global per-IP request limit
-  Log.php                    Daily log files
-  Migrator.php               Database migrations
   helpers.php                Global functions: dd(), e()
+  Http/                      namespace Core\Http\
+    Request.php              $request->body, ->query, ->params, validate() ...
+    Response.php             $response->success(), ->error(), ->view() ...
+    UploadedFile.php         Uploaded file wrapper, store()
+    HttpException.php        throw new HttpException(404, '...') from anywhere
+    Cors.php                 CORS preflight answers and headers
+  Routing/                   namespace Core\Routing\
+    Router.php               Routes, groups, middleware
+    MiddlewareInterface.php  Contract every middleware implements
+  Auth/                      namespace Core\Auth\
+    Jwt.php                  JSON Web Tokens (HS256), our own implementation
+    JwtException.php         Invalid or expired token
+  Database/                  namespace Core\Database\
+    Database.php             PDO connection + query helpers
+    Migrator.php             Database migrations
+  Validation/                namespace Core\Validation\
+    Validator.php            Laravel-style validation rules
+    ValidationException.php  Turns failed validation into a 422 response
+  Support/                   namespace Core\Support\
+    Config.php               Config::get('database.host')
+    Path.php                 Case-exact file checks (same behaviour on macOS, Windows, Linux)
+    Log.php                  Daily log files
+    View.php                 Renders plain-PHP templates from app/Views/
+    RateLimiter.php          Global per-IP request limit
 config/config.php            The one config file (no .env)
 database/migrations/         Migration files
 public/index.php             Front controller, which receives every request
@@ -348,7 +355,7 @@ All routes are defined in `routes/api.php`, and the full URL is written there, w
 ```php
 use App\Controllers\UserController;
 use App\Middlewares\AuthMiddleware;
-use Core\Router;
+use Core\Routing\Router;
 
 $router->group('api/v1', function (Router $router) {
     $router->get('/users', [UserController::class, 'index']);
@@ -379,8 +386,8 @@ Every controller method receives the request and a response object:
 ```php
 namespace App\Controllers;
 
-use Core\Request;
-use Core\Response;
+use Core\Http\Request;
+use Core\Http\Response;
 
 final class PostController
 {
@@ -459,7 +466,9 @@ $response->status  $response->body  $response->headers  // read-only properties
 
 You can also throw an HTTP error from anywhere (controllers, models, middleware):
 ```php
-throw new Core\HttpException(403, 'You cannot do that.');
+use Core\Http\HttpException;
+
+throw new HttpException(403, 'You cannot do that.');
 ```
 
 ## Views
@@ -519,11 +528,11 @@ $request->validate([
 - **Uploads PHP already rejected** (e.g. too large) report PHP's reason, such as `"The file is too large."`.
 - **`mimes`** checks the type detected from the file's contents, not its name. `jpeg`, `jpe` and `jfif` count as `jpg`, upper case is ignored, so `mimes:jpeg,PNG` works.
 
-You can also validate any array: `Core\Validator::make($data, $rules)->fails()` / `->errors()` / `->validate()`.
+You can also validate any array: `Core\Validation\Validator::make($data, $rules)->fails()` / `->errors()` / `->validate()`.
 
 ## Middleware
 
-Middleware classes go in `app/Middlewares/` (`php cli make:middleware Name`) and implement `Core\MiddlewareInterface`:
+Middleware classes go in `app/Middlewares/` (`php cli make:middleware Name`) and implement `Core\Routing\MiddlewareInterface`:
 
 ```php
 public function handle(Request $request, callable $next): Response
@@ -545,12 +554,12 @@ Middleware runs in the order listed, and nested groups inherit their parent's mi
 ## Models
 
 Models go in `app/Models/` (`php cli make:model Name`). Each is a plain class whose static methods run **raw SQL**
-through `Core\Database` and return arrays. Controllers call these methods; there is no base model or query builder.
+through `Core\Database\Database` and return arrays. Controllers call these methods; there is no base model or query builder.
 
 ```php
 namespace App\Models;
 
-use Core\Database;
+use Core\Database\Database;
 
 final class Post
 {
@@ -573,7 +582,7 @@ See `app/Models/User.php` for a real example.
 ## Database
 
 ```php
-use Core\Database;
+use Core\Database\Database;
 
 Database::fetch('SELECT * FROM users WHERE id = ?', [$id]);              // one row or null
 Database::fetchAll('SELECT * FROM users WHERE name LIKE ?', ['A%']);     // array of rows
@@ -600,7 +609,7 @@ php cli make:migration create_posts_table
 A migration is a file in `database/migrations/` named `YYYY_MM_DD_HHMMSS_name.php`:
 
 ```php
-use Core\Database;
+use Core\Database\Database;
 
 return new class {
     public function up(): void

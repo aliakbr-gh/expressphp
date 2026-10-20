@@ -26,8 +26,8 @@ if (PHP_SAPI !== 'cli') {
 
 require __DIR__ . '/core/bootstrap.php';
 
-use Core\Config;
-use Core\Migrator;
+use Core\Database\Migrator;
+use Core\Support\Config;
 
 $args    = array_slice($argv, 1);
 $command = $args[0] ?? 'help';
@@ -73,7 +73,7 @@ $makeClass = function (string $folder, string $name, callable $template): string
     return $file;
 };
 
-// Templates follow the app/ style: no comments; models run raw SQL through Core\Database.
+// Templates follow the app/ style: no comments; models run raw SQL through Core\Database\Database.
 $templates = [
     'controller' => ['Controllers', fn(string $ns, string $class) => <<<PHP
         <?php
@@ -82,8 +82,8 @@ $templates = [
 
         namespace {$ns};
 
-        use Core\Request;
-        use Core\Response;
+        use Core\Http\Request;
+        use Core\Http\Response;
 
         final class {$class}
         {
@@ -101,7 +101,7 @@ $templates = [
 
         namespace {$ns};
 
-        use Core\Database;
+        use Core\Database\Database;
 
         final class {$class}
         {
@@ -119,9 +119,9 @@ $templates = [
 
         namespace {$ns};
 
-        use Core\MiddlewareInterface;
-        use Core\Request;
-        use Core\Response;
+        use Core\Http\Request;
+        use Core\Http\Response;
+        use Core\Routing\MiddlewareInterface;
 
         final class {$class} implements MiddlewareInterface
         {

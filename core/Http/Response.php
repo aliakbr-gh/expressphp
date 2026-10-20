@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Http;
 
+use Core\Support\View;
 use Error;
 use RuntimeException;
 

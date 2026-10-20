@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use Core\Database;
-use Core\Log;
-use Core\Request;
-use Core\Response;
+use Core\Database\Database;
+use Core\Http\Request;
+use Core\Http\Response;
+use Core\Support\Log;
 use Throwable;
 
 final class HealthController

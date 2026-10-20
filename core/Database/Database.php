@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Database;
 
+use Core\Support\Config;
 use PDO;
 use PDOException;
 use PDOStatement;

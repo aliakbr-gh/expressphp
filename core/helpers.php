@@ -42,10 +42,10 @@ if (!function_exists('dd')) {
     function dd(mixed ...$values): never
     {
         $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
-        $where  = Core\Log::relative($caller['file'] ?? '?') . ':' . ($caller['line'] ?? '?');
+        $where  = Core\Support\Log::relative($caller['file'] ?? '?') . ':' . ($caller['line'] ?? '?');
 
-        if (!Core\Config::get('app.debug', false)) {
-            Core\Log::warning("dd() called at {$where} while app.debug is false; nothing was dumped");
+        if (!Core\Support\Config::get('app.debug', false)) {
+            Core\Support\Log::warning("dd() called at {$where} while app.debug is false; nothing was dumped");
 
             if (PHP_SAPI === 'cli') {
                 fwrite(STDERR, "dd() at {$where} is disabled because app.debug is false.\n");
@@ -55,7 +55,7 @@ if (!function_exists('dd')) {
             while (ob_get_level() > 0) {
                 ob_end_clean();
             }
-            (new Core\Response())->error('Internal server error.', 500)->send();
+            (new Core\Http\Response())->error('Internal server error.', 500)->send();
             exit;
         }
 
@@ -75,7 +75,7 @@ if (!function_exists('dd')) {
         $num = '#1299DA'; $str = '#56DB3A'; $note = '#1299DA'; $ref = '#A0A0A0'; $prop = '#FFFFFF'; $key = '#56DB3A';
 
         // Turns any value into HTML in Symfony VarDumper's format:
-        //   array:2 [▼ "key" => "value" ]     Core\Request {#4 ▼ +public  #protected  -private }
+        //   array:2 [▼ "key" => "value" ]     Core\Http\Request {#4 ▼ +public  #protected  -private }
         // $seen holds spl_object_id() of objects being printed (prevents endless loops);
         // $source is the "// file:line" note shown on the first line of the top-level value.
         $render = static function (mixed $value, int $depth, array $seen, string $source = '') use (&$render, $esc, $span, $num, $str, $note, $ref, $prop, $key): string {

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use Core\Request;
-use Core\Response;
+use Core\Http\Request;
+use Core\Http\Response;
 
 final class ExampleController
 {

@@ -11,11 +11,11 @@ declare(strict_types=1);
 define('BASE_PATH', dirname(__DIR__));
 
 // Case-exact file checks, used by the autoloader below (so it is loaded by hand).
-require BASE_PATH . '/core/Path.php';
+require BASE_PATH . '/core/Support/Path.php';
 
 // PSR-4 autoloader:
 //   App\Controllers\UserController => app/Controllers/UserController.php  (your application code)
-//   Core\Router                    => core/Router.php                     (framework internals)
+//   Core\Routing\Router            => core/Routing/Router.php             (framework internals)
 // Names must match the file's letter case exactly, on every OS: macOS and Windows would otherwise
 // load app/Controllers/userController.php for UserController, and the app would only break on Linux.
 spl_autoload_register(static function (string $class): void {
@@ -27,10 +27,10 @@ spl_autoload_register(static function (string $class): void {
     foreach ($namespaces as $prefix => $dir) {
         if (str_starts_with($class, $prefix)) {
             $relative = str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
-            if (Core\Path::isFileExact($dir, $relative)) {
+            if (Core\Support\Path::isFileExact($dir, $relative)) {
                 require $dir . '/' . $relative;
             } elseif (is_file($dir . '/' . $relative)) {
-                Core\Log::warning("Class {$class} not loaded: the file name's letter case differs (file names are case-sensitive on Linux)");
+                Core\Support\Log::warning("Class {$class} not loaded: the file name's letter case differs (file names are case-sensitive on Linux)");
             }
             return;
         }
@@ -40,18 +40,18 @@ spl_autoload_register(static function (string $class): void {
 // Global helper functions such as dd().
 require BASE_PATH . '/core/helpers.php';
 
-Core\Config::load(BASE_PATH . '/config/config.php');
+Core\Support\Config::load(BASE_PATH . '/config/config.php');
 
-date_default_timezone_set(Core\Config::get('app.timezone', 'UTC'));
+date_default_timezone_set(Core\Support\Config::get('app.timezone', 'UTC'));
 
-$debug = (bool) Core\Config::get('app.debug', false);
+$debug = (bool) Core\Support\Config::get('app.debug', false);
 error_reporting(E_ALL);
 ini_set('display_errors', $debug ? '1' : '0');
 
 // PHP's own messages (e.g. startup errors) go to the same daily file, or nowhere when logging is off.
-if (Core\Log::enabled()) {
+if (Core\Support\Log::enabled()) {
     ini_set('log_errors', '1');
-    ini_set('error_log', Core\Log::file());
+    ini_set('error_log', Core\Support\Log::file());
 } else {
     ini_set('log_errors', '0');
 }
@@ -65,7 +65,7 @@ set_error_handler(static function (int $severity, string $message, string $file,
     // Deprecations only warn about a future PHP version: log them instead of failing the request,
     // so upgrading PHP never turns working endpoints into 500s.
     if ($severity === E_DEPRECATED || $severity === E_USER_DEPRECATED) {
-        Core\Log::warning("Deprecated: {$message} at " . Core\Log::relative($file) . ":{$line}");
+        Core\Support\Log::warning("Deprecated: {$message} at " . Core\Support\Log::relative($file) . ":{$line}");
         return true;
     }
 
@@ -76,6 +76,6 @@ set_error_handler(static function (int $severity, string $message, string $file,
 register_shutdown_function(static function (): void {
     $error = error_get_last();
     if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-        Core\Log::error('Fatal: ' . $error['message'] . ' at ' . Core\Log::relative($error['file']) . ':' . $error['line']);
+        Core\Support\Log::error('Fatal: ' . $error['message'] . ' at ' . Core\Support\Log::relative($error['file']) . ':' . $error['line']);
     }
 });

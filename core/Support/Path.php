@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Support;
 
 /**
  * Case-exact file checks, so code behaves the same on every OS.

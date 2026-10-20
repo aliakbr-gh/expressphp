@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Core\Database;
+use Core\Database\Database;
 
 /**
  * Users who can register and log in (see AuthController).

@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Database;
 
+use Core\Support\Config;
 use RuntimeException;
 use Throwable;
 
@@ -156,7 +157,7 @@ final class Migrator
 
         declare(strict_types=1);
 
-        use Core\\Database;
+        use Core\\Database\\Database;
 
         return new class {
             public function up(): void

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Middlewares;
 
 use App\Models\User;
-use Core\Jwt;
-use Core\JwtException;
-use Core\MiddlewareInterface;
-use Core\Request;
-use Core\Response;
+use Core\Auth\Jwt;
+use Core\Auth\JwtException;
+use Core\Http\Request;
+use Core\Http\Response;
+use Core\Routing\MiddlewareInterface;
 
 final class AuthMiddleware implements MiddlewareInterface
 {

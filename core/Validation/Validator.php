@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Validation;
 
+use Core\Database\Database;
+use Core\Http\UploadedFile;
 use InvalidArgumentException;
 
 /**

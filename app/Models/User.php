@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Core\Database;
+use Core\Database\Database;
 
 final class User
 {

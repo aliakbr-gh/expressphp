@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Http;
 
+use Core\Support\Config;
+use Core\Validation\Validator;
 use Error;
 use RequestParseBodyException;
 

@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Routing;
 
+use Core\Http\HttpException;
+use Core\Http\Request;
+use Core\Http\Response;
 use RuntimeException;
 
 /**

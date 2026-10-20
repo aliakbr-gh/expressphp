@@ -7,7 +7,7 @@ use App\Controllers\ExampleController;
 use App\Controllers\FileController;
 use App\Controllers\HealthController;
 use App\Middlewares\AuthMiddleware;
-use Core\Router;
+use Core\Routing\Router;
 
 $router->group('api/v1', function (Router $router) {
     $router->group('health', function (Router $router) {

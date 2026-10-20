@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Support;
 
 /**
  * Global per-IP rate limiter, stored in small files under storage/ratelimit/.

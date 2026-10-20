@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Http;
+
+use Core\Support\Config;
 
 /**
  * CORS: lets browser apps on other origins (e.g. a React app on another domain) call the API.

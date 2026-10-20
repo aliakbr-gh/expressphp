@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Validation;
+
+use Core\Http\HttpException;
 
 /**
  * Thrown when validation fails; rendered as 422 with per-field errors:

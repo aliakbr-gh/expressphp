@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Core;
+namespace Core\Routing;
+
+use Core\Http\Request;
+use Core\Http\Response;
 
 /**
  * Middleware wraps a route handler. Call $next($request) to continue,
